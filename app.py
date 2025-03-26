@@ -20,11 +20,7 @@ schema_name = os.getenv("SCHEMA_NAME")
 pipe_name = os.getenv("PIPE_NAME")
 client_name = os.getenv("CLIENT_NAME")
 
-props = {"ssl": "on",
-         "scheme": "https",
-         "port": 443, 
-         "url": os.getenv("SNOWFLAKE_URL"), 
-         "account": os.getenv("SNOWFLAKE_ACCOUNT"), 
+props = {"account": os.getenv("SNOWFLAKE_ACCOUNT"), 
          "user": os.getenv("SNOWFLAKE_USER"),
          "database": database_name,
          "schema": schema_name,
