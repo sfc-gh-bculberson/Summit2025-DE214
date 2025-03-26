@@ -31,7 +31,6 @@ props = {"ssl": "on",
          "private_key": "-----BEGIN PRIVATE KEY-----\n" + os.getenv("PRIVATE_KEY") + "\n-----END PRIVATE KEY-----\n)",
          }
 
-print(props)
 
 with closing(SnowflakeStreamingIngestClient(client_name, **props)) as client:
     channel = client.open_channel(channel_name, database_name, schema_name, pipe_name)

@@ -31,5 +31,5 @@ def get_lift_ticket():
                    'email': fake.none_or(fake.email()),
                    'emergency_contact' : fake.none_or({'name': fake.name(), 'phone': fake.phone_number()}),
     }
-    d = json.dumps(lift_ticket) + '\n'
+    d = json.dumps(lift_ticket)
     return d
