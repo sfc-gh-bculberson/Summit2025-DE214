@@ -17,19 +17,19 @@ resorts = ["Vail", "Beaver Creek", "Breckenridge", "Keystone", "Crested Butte", 
 def get_lift_ticket():
     global resorts, fake
     state = fake.state_abbr()
-    lift_ticket = {'txid': str(uuid.uuid4()),
-                   'rfid': hex(random.getrandbits(96)),
-                   'resort': fake.random_element(elements=resorts),
-                   'purchase_time': datetime.utcnow().isoformat(),
-                   'expiration_time': date(2023, 6, 1).isoformat(),
-                   'days': fake.random_int(min=1, max=7),
-                   'name': fake.name(),
-                   'address': fake.none_or({'street_address': fake.street_address(), 
-                                             'city': fake.city(), 'state': state, 
-                                             'postalcode': fake.postalcode_in_state(state)}),
-                   'phone': fake.none_or(fake.phone_number()),
-                   'email': fake.none_or(fake.email()),
-                   'emergency_contact' : fake.none_or({'name': fake.name(), 'phone': fake.phone_number()}),
+    lift_ticket = {'TXID': str(uuid.uuid4()),
+                   'RFID': hex(random.getrandbits(96)),
+                   'RESORT': fake.random_element(elements=resorts),
+                   'PURCHASE_TIME': datetime.utcnow().isoformat(),
+                   'EXPIRATION_TIME': date(2023, 6, 1).isoformat(),
+                   'DAYS': fake.random_int(min=1, max=7),
+                   'NAME': fake.name(),
+                   'ADDRESS': fake.none_or({'STREET_ADDRESS': fake.street_address(), 
+                                             'CITY': fake.city(), 'STATE': state, 
+                                             'POSTALCODE': fake.postalcode_in_state(state)}),
+                   'PHONE': fake.none_or(fake.phone_number()),
+                   'EMAIL': fake.none_or(fake.email()),
+                   'EMERGERCY_CONTACT' : fake.none_or({'NAME': fake.name(), 'PHONE': fake.phone_number()}),
     }
     d = json.dumps(lift_ticket)
     return d

@@ -10,7 +10,7 @@ from snowflake.ingest import SnowflakeStreamingIngestClient
 from generator import get_lift_ticket
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 load_dotenv()
 
 # parameters
@@ -40,14 +40,13 @@ with closing(SnowflakeStreamingIngestClient(client_name, **props)) as client:
     latest_committed_offset_token = channel.get_latest_committed_offset_token()
     logger.info("latest committed offset token before insert: " + (latest_committed_offset_token or "None"))
     # send data with batching of 20 rows per batch
-    row = ""
     batch_size = 20
     rows = []
     logger.info("start sending insert rows with batching")
 
     for val in range(row_num):
         rows.append(get_lift_ticket())
-        if val % batch_size == 0:
+        if val % batch_size == 0 and val > 0:
             # batch insert
             nl_json = "\n".join(rows)
             channel.insert_rows(nl_json, offset_token=str(val))
