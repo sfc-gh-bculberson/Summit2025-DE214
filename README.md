@@ -67,7 +67,7 @@ MATCH_BY_COLUMN_NAME=CASE_SENSITIVE;
 To get the private key for this user run the following in your shell:
 
 ```sh
-PRVK=`awk '$1=$1' ORS='\\n' ./rsa_key.p8 `
+PRVK=`cat ./rsa_key.p8 | grep -v KEY- | tr -d '\012'`
 echo "PRIVATE_KEY=$PRVK"
 ```
 

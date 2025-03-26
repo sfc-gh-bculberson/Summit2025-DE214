@@ -25,11 +25,10 @@ props = {"ssl": "on",
          "port": 443, 
          "url": os.getenv("SNOWFLAKE_URL"), 
          "account": os.getenv("SNOWFLAKE_ACCOUNT"), 
-         "host": os.getenv("SNOWFLAKE_HOST"),
          "user": os.getenv("SNOWFLAKE_USER"),
          "database": database_name,
          "schema": schema_name,
-         "private_key": os.getenv("PRIVATE_KEY"),
+         "private_key": "-----BEGIN PRIVATE KEY-----\n" + os.getenv("PRIVATE_KEY") + "\n-----END PRIVATE KEY-----\n)",
          }
 
 print(props)
