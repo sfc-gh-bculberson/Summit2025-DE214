@@ -25,6 +25,7 @@ props = {"account": os.getenv("SNOWFLAKE_ACCOUNT"),
          "database": database_name,
          "schema": schema_name,
          "private_key": "-----BEGIN PRIVATE KEY-----\n" + os.getenv("PRIVATE_KEY") + "\n-----END PRIVATE KEY-----\n)",
+         "ROWSET_DEV_VM_TEST_MODE": "false",
          }
 
 
