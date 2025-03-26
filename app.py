@@ -44,9 +44,9 @@ with closing(SnowflakeStreamingIngestClient(client_name, **props)) as client:
     rows = []
     logger.info("start sending insert rows with batching")
 
-    for val in range(row_num):
+    for val in range(1, row_num):
         rows.append(get_lift_ticket())
-        if val % batch_size == 0 and val > 0:
+        if val % batch_size == 0:
             # batch insert
             nl_json = "\n".join(rows)
             channel.insert_rows(nl_json, offset_token=str(val))
