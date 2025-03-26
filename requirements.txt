@@ -1,0 +1,12 @@
+pyjwt
+snowflake-connector-python>=3.0.3
+furl
+cryptography
+requests<=2.32.3
+apscheduler
+python-dotenv
+faker>=28.4.1
+optional-faker>=2.1.0
+python-rapidjson>=1.5
+setuptools
+orjson
