@@ -5,6 +5,7 @@ import random
 import sqlite3
 import psutil
 
+from time import sleep
 from faker import Faker
 from datetime import date, datetime
 
@@ -49,6 +50,8 @@ def main():
             lift_ticket = get_lift_ticket()
             cur.execute("INSERT INTO tdata (data) VALUES (?)", (lift_ticket,))
             con.commit()
+            # Generate a new lift ticket every 10ms
+            sleep(0.01)
 
 
 if __name__ == "__main__":

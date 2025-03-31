@@ -38,7 +38,7 @@ def main():
         if not latest_committed_offset_token:
             latest_committed_offset_token = 0
         # send data with batching
-        batch_size = 20
+        batch_size = 100
         logger.info("start sending insert rows with batching")
         con = sqlite3.connect("data.db")
         while True:
