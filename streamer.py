@@ -40,7 +40,7 @@ def main():
         # send data with batching of 20 rows per batch
         batch_size = 20
         logger.info("start sending insert rows with batching")
-        con = sqlite3.connect("data.db")
+        con = sqlite3.connect("/mnt/data/data.db")
         while True:
             cur = con.cursor()
             rows = []
