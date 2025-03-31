@@ -2,6 +2,8 @@ import rapidjson as json
 import optional_faker as _
 import uuid
 import random
+import sqlite3
+import psutil
 
 from faker import Faker
 from datetime import date, datetime
@@ -33,3 +35,20 @@ def get_lift_ticket():
     }
     d = json.dumps(lift_ticket)
     return d
+
+
+def main():
+    con = sqlite3.connect("data.db")
+    cur = con.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS tdata (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT)")
+    con.commit()
+    while(True):
+        # Keep at least 1 gb on disk free
+        if psutil.disk_usage('.').free > 1e+9:
+            lift_ticket = get_lift_ticket()
+            cur.execute("INSERT INTO tdata (data) VALUES (?)", (lift_ticket,))
+            con.commit()
+
+
+if __name__ == "__main__":
+    main()

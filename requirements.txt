@@ -13,6 +13,7 @@ orderedmultidict==1.0.1
 orjson==3.10.16
 packaging==24.2
 platformdirs==4.3.7
+psutil==7.0.0
 pycparser==2.22
 PyJWT==2.10.1
 pyOpenSSL==25.0.0
