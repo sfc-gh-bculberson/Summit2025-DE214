@@ -88,5 +88,5 @@ docker build -t generator .
 ## Starting the generator
 
 ```sh
-docker run -v `pwd`/data:/mnt/data generator
+docker run generator
 ```

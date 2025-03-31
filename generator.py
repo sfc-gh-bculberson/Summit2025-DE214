@@ -16,6 +16,7 @@ resorts = ["Vail", "Beaver Creek", "Breckenridge", "Keystone", "Crested Butte", 
            "Hidden Valley", "Snow Creek", "Wilmot", "Afton Alps" , "Mt. Brighton", "Paoli Peaks"]    
 
 
+
 def get_lift_ticket():
     global resorts, fake
     state = fake.state_abbr()
@@ -38,13 +39,13 @@ def get_lift_ticket():
 
 
 def main():
-    con = sqlite3.connect("/mnt/data/data.db")
+    con = sqlite3.connect("data.db")
     cur = con.cursor()
     cur.execute("CREATE TABLE IF NOT EXISTS tdata (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT)")
     con.commit()
     while(True):
         # Keep at least 1 gb on disk free
-        if psutil.disk_usage('/mnt/data/').free > 1e+9:
+        if psutil.disk_usage('.').free > 1e+9:
             lift_ticket = get_lift_ticket()
             cur.execute("INSERT INTO tdata (data) VALUES (?)", (lift_ticket,))
             con.commit()
