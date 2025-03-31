@@ -50,8 +50,8 @@ def main():
             lift_ticket = get_lift_ticket()
             cur.execute("INSERT INTO tdata (data) VALUES (?)", (lift_ticket,))
             con.commit()
-            # Generate a new lift ticket every 10ms
-            sleep(0.01)
+            # Generate a new lift ticket a random time up to 20ms
+            sleep(random.uniform(0,0.02))
 
 
 if __name__ == "__main__":
