@@ -15,7 +15,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the files into the container at /app
 COPY .env /app
 COPY streamer.py /app
-COPY generator.py /app
+COPY generate_tickets.py /app
+COPY generate_rides.py /app
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 CMD ["/usr/bin/supervisord"]
