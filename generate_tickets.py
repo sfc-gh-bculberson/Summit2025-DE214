@@ -101,7 +101,7 @@ def main():
                         active_season_passes.append((rfid, exp)) 
                         if random.random() > 0.95:
                             resort = random.choices(population=resorts, weights=weights, k=1)[0]
-                            generate_rides(rfid, resort, world_time, cur, con)
+                            generate_rides(rfid, resort, world_time - datetime.timedelta(hours=-7), cur, con)
                 season_passes = active_season_passes
                 active_tickets = []
                 for (rfid, exp, resort) in tickets:
@@ -109,7 +109,7 @@ def main():
                         active_tickets.append((rfid, exp, resort))
                         # 55% chance of skiing on purchase day
                         if random.random() > 0.55:
-                            generate_rides(rfid, resort, world_time, cur, con)
+                            generate_rides(rfid, resort, world_time - datetime.timedelta(hours=-7), cur, con)
                 tickets = active_tickets
                 passes_processed = world_time
                 

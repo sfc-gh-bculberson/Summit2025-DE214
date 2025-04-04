@@ -173,7 +173,7 @@ def generate_rides(rfid, resort, rtime, cur, con):
     lifts_ridden = fake.random_int(1,20)
     lift_rides = random.choices(lifts, k=lifts_ridden)
     for lift in lift_rides:
-        rtime = rtime + datetime.timedelta(minutes=random.randint(1, 60))
+        rtime = rtime + datetime.timedelta(minutes=random.randint(1, 420))
         lift_ride = {'TXID': str(uuid.uuid4()),
                 'RFID': rfid,
                 'RESORT': resort,
