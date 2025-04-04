@@ -16,6 +16,9 @@ logging.basicConfig(level=logging.DEBUG)
 load_dotenv()
 
 # parameters
+# TODO: Reuse Channels
+# It is too difficult to debug now when recreating the PIPE due to the following issue
+# https://snowflakecomputing.atlassian.net/browse/SNOW-2017222
 channel_name = str(uuid.uuid4())
 database_name = os.getenv("DATABASE_NAME")
 schema_name = os.getenv("SCHEMA_NAME")
