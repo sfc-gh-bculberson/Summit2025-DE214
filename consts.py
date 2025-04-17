@@ -1,14 +1,6 @@
-import json
-import random
-import uuid
-import datetime
+from zoneinfo import ZoneInfo
 
-from faker import Faker
-
-fake = Faker()
-
-
-vail_lifts = [
+VAIL_LIFTS = [
     "Eagle Bahn Gondola",
     "Gondola One",
     "Game Creek Express",
@@ -44,7 +36,7 @@ vail_lifts = [
     "Lightning Coyote",
     "Lionshead Magic Carpet",
 ]
-beaver_lifts = [
+BEAVER_LIFTS = [
     "Haymeadow Express Gondola",
     "Riverfront Express",
     "Centennial Express",
@@ -69,9 +61,9 @@ beaver_lifts = [
     "Jitterbug",
     "Bibber Bahn",
     "Trail Rider",
-    "Snowflake",   
+    "Snowflake",
 ]
-breckenridge_lifts = [
+BRECKENRIDGE_LIFTS = [
     "BreckConnect Gondola",
     "Falcon SuperChair",
     "Colorado SuperChair",
@@ -106,9 +98,9 @@ breckenridge_lifts = [
     "Village Carpet A",
     "Ski and Ride Carpet 2",
     "Ski and Ride Carpet 3",
-    "Castle Carpet 1"
+    "Castle Carpet 1",
 ]
-keysone_lifts = [
+KEYSTONE_LIFTS = [
     "River Run Gondola",
     "Outpost Gondola",
     "Bergman Bowl Express",
@@ -131,7 +123,7 @@ keysone_lifts = [
     "Triangle",
     "Tubing Hill",
 ]
-heavenly_lifts = [
+HEAVENLY_LIFTS = [
     "Aerial Tram",
     "Heavenly Gondola",
     "Powderbowl Express",
@@ -158,27 +150,27 @@ heavenly_lifts = [
     "Enchanted Carpet",
     "Boulder Carpet",
     "Bear Cave Carpet",
-    "Tubing Lift",    
+    "Tubing Lift",
 ]
 # TODO ADD MORE RESORTS?
 
-resort_lifts = {"Vail": vail_lifts, "Beaver Creek": beaver_lifts, "Breckenridge": breckenridge_lifts, "Keystone": keysone_lifts, "Heavenly": heavenly_lifts}
-
-
-def generate_rides(rfid, resort, rtime, cur, con):
-    if not resort in resort_lifts:
-        return
-    lifts = resort_lifts[resort]
-    # TODO BETTER DISTRIBUTION?
-    lifts_ridden = fake.random_int(1,20)
-    lift_rides = random.choices(lifts, k=lifts_ridden)
-    for lift in lift_rides:
-        rtime = rtime + datetime.timedelta(minutes=random.randint(1, 420))
-        lift_ride = {'TXID': str(uuid.uuid4()),
-                'RFID': rfid,
-                'RESORT': resort,
-                'LIFT': lift,
-                'RIDE_TIME': rtime.isoformat(),
-        }
-        cur.execute("INSERT INTO lift_ride (data) VALUES (?)", (json.dumps(lift_ride),))
-        con.commit
+RESORT_LIFTS = {
+    "Vail": VAIL_LIFTS,
+    "Beaver Creek": BEAVER_LIFTS,
+    "Breckenridge": BRECKENRIDGE_LIFTS,
+    "Keystone": KEYSTONE_LIFTS,
+    "Heavenly": HEAVENLY_LIFTS,
+}
+RESORTS = ["Vail", "Beaver Creek", "Breckenridge", "Keystone", "Heavenly"]
+RESORT_WEIGHTS = [0.25, 0.2, 0.25, 0.2, 0.1]
+RESORT_TZS = [
+    ZoneInfo("America/Denver"),
+    ZoneInfo("America/Denver"),
+    ZoneInfo("America/Denver"),
+    ZoneInfo("America/Denver"),
+    ZoneInfo("America/Los_Angeles"),
+]
+RIDE_MIN = 10
+RIDE_MAX = 30
+REST_MIN = 30
+REST_MAX = 60
