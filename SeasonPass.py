@@ -78,7 +78,7 @@ class SeasonPass:
                 getattr(self, "last_ride_date", None) is not None
                 and self.last_ride_date.date() == p_time.date()
             ):
-                return True, self._LAST_RESORT
+                return True, self.last_resort
             else:
                 return False, None
 

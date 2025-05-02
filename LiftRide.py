@@ -7,11 +7,11 @@ from consts import RESORT_LIFTS
 
 class LiftRide:
     def __init__(self, rfid, resort, rtime):
-        self.TXID = str(uuid.uuid4())
-        self.RFID = rfid
-        self.RESORT = resort
-        self.RIDE_TIME = rtime.isoformat()
-        self.LIFT = random.choice(RESORT_LIFTS[resort])
+        self.txid = str(uuid.uuid4())
+        self.rfid = rfid
+        self.resort = resort
+        self.ride_time = rtime.isoformat()
+        self.lift = random.choice(RESORT_LIFTS[resort])
 
     def __str__(self):
         return f"{self.txid}({self.name})"
@@ -19,10 +19,10 @@ class LiftRide:
     def toJSON(self):
         return json.dumps(
             {
-                "TXID": self.TXID,
-                "RFID": self.RFID,
-                "RIDE_TIME": self.RIDE_TIME,
-                "LIFT": self.LIFT,
-                "RESORT": self.RESORT,
+                "TXID": self.txid,
+                "RFID": self.rfid,
+                "RIDE_TIME": self.ride_time,
+                "LIFT": self.lift,
+                "RESORT": self.resort,
             }
         )
