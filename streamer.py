@@ -37,9 +37,7 @@ props = {
 }
 
 
-def stream_resort_tickets():
-    pipe_name = os.getenv("RESORT_TICKET_PIPE_NAME")
-    backend = SQLiteBackend()
+def stream_data(pipe_name, fn_get_data, fn_delete_data):
     with closing(SnowflakeStreamingIngestClient(client_name, **props)) as client:
         logger.info("start sending insert rows with batching for resort tickets")
         channel = client.open_channel(
@@ -49,9 +47,7 @@ def stream_resort_tickets():
         if not latest_committed_offset_token:
             latest_committed_offset_token = 0
         while True:
-            rows = backend.GetResortTicketBatch(
-                latest_committed_offset_token, BATCH_SIZE
-            )
+            rows = fn_get_data(latest_committed_offset_token, BATCH_SIZE)
             if len(rows) > 0:
                 nl_json = "\n".join([row[1] for row in rows])
                 latest_committed_offset_token = rows[-1][0]
@@ -60,55 +56,25 @@ def stream_resort_tickets():
                     channel.get_latest_committed_offset_token()
                 )
                 if current_committed_offset_token:
-                    backend.DeleteResortTickets(current_committed_offset_token)
+                    fn_delete_data(current_committed_offset_token)
+
+
+def stream_resort_tickets():
+    pipe_name = os.getenv("RESORT_TICKET_PIPE_NAME")
+    backend = SQLiteBackend()
+    stream_data(pipe_name, backend.GetResortTicketBatch, backend.DeleteResortTickets)
 
 
 def stream_season_passes():
     pipe_name = os.getenv("SEASON_PASS_PIPE_NAME")
     backend = SQLiteBackend()
-    with closing(SnowflakeStreamingIngestClient(client_name, **props)) as client:
-        logger.info("start sending insert rows with batching for season passes")
-        channel = client.open_channel(
-            channel_name, database_name, schema_name, pipe_name
-        )
-        latest_committed_offset_token = channel.get_latest_committed_offset_token()
-        if not latest_committed_offset_token:
-            latest_committed_offset_token = 0
-        while True:
-            rows = backend.GetSeasonPassBatch(latest_committed_offset_token, BATCH_SIZE)
-            if len(rows) > 0:
-                nl_json = "\n".join([row[1] for row in rows])
-                latest_committed_offset_token = rows[-1][0]
-                channel.insert_rows(nl_json, offset_token=latest_committed_offset_token)
-                current_committed_offset_token = (
-                    channel.get_latest_committed_offset_token()
-                )
-                if current_committed_offset_token:
-                    backend.DeleteSeasonPasses(current_committed_offset_token)
+    stream_data(pipe_name, backend.GetSeasonPassBatch, backend.DeleteSeasonPasses)
 
 
 def stream_lift_rides():
     pipe_name = os.getenv("LIFT_RIDE_PIPE_NAME")
     backend = SQLiteBackend()
-    with closing(SnowflakeStreamingIngestClient(client_name, **props)) as client:
-        logger.info("start sending insert rows with batching for lift rides")
-        channel = client.open_channel(
-            channel_name, database_name, schema_name, pipe_name
-        )
-        latest_committed_offset_token = channel.get_latest_committed_offset_token()
-        if not latest_committed_offset_token:
-            latest_committed_offset_token = 0
-        while True:
-            rows = backend.GetLiftRideBatch(latest_committed_offset_token, BATCH_SIZE)
-            if len(rows) > 0:
-                nl_json = "\n".join([row[1] for row in rows])
-                latest_committed_offset_token = rows[-1][0]
-                channel.insert_rows(nl_json, offset_token=latest_committed_offset_token)
-                current_committed_offset_token = (
-                    channel.get_latest_committed_offset_token()
-                )
-                if current_committed_offset_token:
-                    backend.DeleteLiftRides(current_committed_offset_token)
+    stream_data(pipe_name, backend.GetLiftRideBatch, backend.DeleteLiftRides)
 
 
 def main():
