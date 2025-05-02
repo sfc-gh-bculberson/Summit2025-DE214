@@ -23,7 +23,7 @@ channel_name = str(uuid.uuid4())
 database_name = os.getenv("DATABASE_NAME")
 schema_name = os.getenv("SCHEMA_NAME")
 client_name = os.getenv("CLIENT_NAME")
-BATCH_SIZE = 2
+BATCH_SIZE = 10000
 
 props = {
     "account": os.getenv("SNOWFLAKE_ACCOUNT"),
