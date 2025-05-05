@@ -89,8 +89,8 @@ MATCH_BY_COLUMN_NAME=CASE_SENSITIVE;
 To get the private key for this user run the following in your shell:
 
 ```sh
-PRVK=`cat ./rsa_key.p8 | grep -v KEY- | tr -d '\012'`
-echo "PRIVATE_KEY=$PRVK"
+PRVK=`cat ./rsa_key.p8`
+echo "PRIVATE_KEY=\"$PRVK\""
 ```
 
 Copy the .env.example to .env and modify the variables in your project
@@ -98,7 +98,12 @@ Copy the .env.example to .env and modify the variables in your project
 ```
 SNOWFLAKE_ACCOUNT=<ACCOUNT_HERE>
 SNOWFLAKE_USER=STREAMING_INGEST
-PRIVATE_KEY=<PRIVATE_KEY_HERE>
+PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
+YOUR...
+....KEY
+....HERE==
+-----END PRIVATE KEY-----
+"
 ```
 
 ## Building the generator

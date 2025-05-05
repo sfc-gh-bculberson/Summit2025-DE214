@@ -25,19 +25,16 @@ schema_name = os.getenv("SCHEMA_NAME")
 client_name = os.getenv("CLIENT_NAME")
 BATCH_SIZE = 10000
 
-props = {
-    "account": os.getenv("SNOWFLAKE_ACCOUNT"),
-    "user": os.getenv("SNOWFLAKE_USER"),
-    "database": database_name,
-    "schema": schema_name,
-    "private_key": "-----BEGIN PRIVATE KEY-----\n"
-    + os.getenv("PRIVATE_KEY")
-    + "\n-----END PRIVATE KEY-----\n)",
-    "ROWSET_DEV_VM_TEST_MODE": "false",
-}
-
 
 def stream_data(pipe_name, fn_get_data, fn_delete_data):
+    props = {
+        "account": os.getenv("SNOWFLAKE_ACCOUNT"),
+        "user": os.getenv("SNOWFLAKE_USER"),
+        "database": database_name,
+        "schema": schema_name,
+        "private_key": os.getenv("PRIVATE_KEY"),
+        "ROWSET_DEV_VM_TEST_MODE": "false",
+    }
     with closing(SnowflakeStreamingIngestClient(client_name, **props)) as client:
         logger.info("start sending insert rows with batching for resort tickets")
         channel = client.open_channel(
