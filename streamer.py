@@ -3,7 +3,6 @@
 import logging
 import os
 import threading
-import uuid
 
 from contextlib import closing
 from dotenv import load_dotenv
@@ -20,37 +19,15 @@ channel_name = "DE214-CODESPACE"
 database_name = os.getenv("DATABASE_NAME")
 schema_name = os.getenv("SCHEMA_NAME")
 client_name = os.getenv("CLIENT_NAME")
+account_name = os.getenv("SNOWFLAKE_ACCOUNT")
+user_name = os.getenv("SNOWFLAKE_USER")
+private_key = os.getenv("PRIVATE_KEY")
 BATCH_SIZE = 10000
 
 
 def stream_data(pipe_name, fn_get_data, fn_delete_data):
-    props = {
-        "account": os.getenv("SNOWFLAKE_ACCOUNT"),
-        "user": os.getenv("SNOWFLAKE_USER"),
-        "database": database_name,
-        "schema": schema_name,
-        "private_key": os.getenv("PRIVATE_KEY"),
-        "ROWSET_DEV_VM_TEST_MODE": "false",
-    }
-    with closing(SnowflakeStreamingIngestClient(client_name, **props)) as client:
-        logger.info("start sending insert rows with batching for resort tickets")
-        channel = client.open_channel(
-            channel_name, database_name, schema_name, pipe_name
-        )
-        latest_committed_offset_token = channel.get_latest_committed_offset_token()
-        if not latest_committed_offset_token:
-            latest_committed_offset_token = 0
-        while True:
-            rows = fn_get_data(latest_committed_offset_token, BATCH_SIZE)
-            if len(rows) > 0:
-                nl_json = "\n".join([row[1] for row in rows])
-                latest_committed_offset_token = rows[-1][0]
-                channel.insert_rows(nl_json, offset_token=latest_committed_offset_token)
-                current_committed_offset_token = (
-                    channel.get_latest_committed_offset_token()
-                )
-                if current_committed_offset_token:
-                    fn_delete_data(current_committed_offset_token)
+    # Write this function to stream data to Snowflake
+    pass
 
 
 def stream_resort_tickets():
