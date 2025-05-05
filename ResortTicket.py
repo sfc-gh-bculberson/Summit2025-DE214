@@ -91,8 +91,10 @@ class ResortTicket:
             last_ride = random.randrange(REST_MIN, REST_MAX)
         if (
             getattr(self, "last_lift_ridden", None) is not None
-            and self.last_lift_ridden.date() + datetime.timedelta(minutes=last_ride)
-            < p_time
+            and self.last_lift_ridden + datetime.timedelta(minutes=last_ride) < p_time
         ):
+            self.last_lift_ridden = p_time
+            return True
+        elif getattr(self, "last_lift_ridden", None) is None:
             self.last_lift_ridden = p_time
             return True
