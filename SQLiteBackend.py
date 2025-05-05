@@ -8,7 +8,7 @@ lock = Lock()
 class SQLiteBackend(object):
 
     def __init__(self):
-        self.con = sqlite3.connect("data.db")
+        self.con = sqlite3.connect("/app/data/data.db")
         cur = self.con.cursor()
         cur.execute(
             "CREATE TABLE IF NOT EXISTS SEASON_PASS (ID INTEGER PRIMARY KEY AUTOINCREMENT, DATA TEXT)"

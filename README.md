@@ -109,13 +109,13 @@ YOUR...
 ## Building the generator
 
 ```sh
-docker build -t generator .
+docker compose build
 ```
 
 ## Starting the generator
 
 ```sh
-docker run generator
+docker compose up
 ```
 
 ## Create some dynamic table to prepare data for reporting

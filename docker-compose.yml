@@ -1,0 +1,8 @@
+version: '3'
+services:
+  generator:
+    build: .
+    volumes:
+      - streamingdata:/app/data
+volumes:
+  streamingdata:
