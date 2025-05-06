@@ -13,6 +13,7 @@ RUN tar -xzf snowflake_ingest-0.0.1.tar.gz
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the files into the container at /app
+COPY *.p8 /app
 COPY .env /app
 COPY *.py /app
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf

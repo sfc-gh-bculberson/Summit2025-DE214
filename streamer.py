@@ -5,6 +5,7 @@ import os
 import threading
 
 from contextlib import closing
+from pathlib import Path
 from dotenv import load_dotenv
 from SQLiteBackend import SQLiteBackend
 
@@ -21,13 +22,14 @@ schema_name = os.getenv("SCHEMA_NAME")
 client_name = os.getenv("CLIENT_NAME")
 account_name = os.getenv("SNOWFLAKE_ACCOUNT")
 user_name = os.getenv("SNOWFLAKE_USER")
-private_key = os.getenv("PRIVATE_KEY")
+private_key = Path('rsa_key.p8').read_text()
 BATCH_SIZE = 10000
 
 
 def stream_data(pipe_name, fn_get_data, fn_delete_data):
     # Write this function to stream data to Snowflake
-    pass
+    while True:
+        logger.info("sending rows with batching")
 
 
 def stream_resort_tickets():
