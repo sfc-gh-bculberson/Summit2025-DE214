@@ -7,12 +7,15 @@ import threading
 from contextlib import closing
 from pathlib import Path
 from dotenv import load_dotenv
-from SQLiteBackend import SQLiteBackend
 
 from snowflake.ingest import SnowflakeStreamingIngestClient
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+from storage.sqlite_backend import SQLiteBackend
+from utils import configure_logging
+
+configure_logging()
+logger = logging.getLogger('ski_data_streamer')
+
 load_dotenv()
 
 # parameters
