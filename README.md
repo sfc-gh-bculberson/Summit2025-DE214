@@ -2,7 +2,7 @@
 
 In this hands-on lab, you'll build a production-ready streaming data pipeline using Python and Snowflake's new Rowset API. Learn how to efficiently ingest real-time data streams into Snowflake, create automated aggregations, and visualize insights through an interactive Streamlit application. You'll walk away with practical experience in modern data engineering techniques and a functional end-to-end pipeline that can handle continuous data flows at scale.
 
-Docs for Snowpipie Streaming Rowset API Private Preview: https://docs.snowflake.com/en/LIMITEDACCESS/snowpipe-streaming-rowset-api/rowset-api-intro
+Docs for Snowpipe Streaming Rowset API Private Preview: https://docs.snowflake.com/en/LIMITEDACCESS/snowpipe-streaming-rowset-api/rowset-api-intro
 
 ## Database Setup
 

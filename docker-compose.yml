@@ -1,7 +1,8 @@
-version: '3'
 services:
-  generator:
-    build: .
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     volumes:
       - streamingdata:/app/data
 volumes:

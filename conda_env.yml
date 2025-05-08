@@ -1,0 +1,7 @@
+name: de214
+channels:
+  - https://repo.anaconda.com/pkgs/snowflake
+  - nodefaults
+dependencies:
+  - python=3.11
+  - pip

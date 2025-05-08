@@ -6,12 +6,15 @@ import threading
 
 from contextlib import closing
 from dotenv import load_dotenv
-from SQLiteBackend import SQLiteBackend
 
 from snowflake.ingest import SnowflakeStreamingIngestClient
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+from storage.sqlite_backend import SQLiteBackend
+from utils import configure_logging
+
+configure_logging()
+logger = logging.getLogger('ski_data_streamer')
+
 load_dotenv()
 
 # parameters
@@ -26,8 +29,34 @@ BATCH_SIZE = 10000
 
 
 def stream_data(pipe_name, fn_get_data, fn_delete_data):
-    # Write this function to stream data to Snowflake
-    pass
+    props = {
+        "account": account_name,
+        "user": user_name,
+        "database": database_name,
+        "schema": schema_name,
+        "private_key": private_key,
+        "ROWSET_DEV_VM_TEST_MODE": "false",
+    }
+    with closing(SnowflakeStreamingIngestClient(client_name, **props)) as client:
+        logger.info("sending rows with batching")
+
+        channel = client.open_channel(
+            channel_name, database_name, schema_name, pipe_name
+        )
+        latest_committed_offset_token = channel.get_latest_committed_offset_token()
+        if not latest_committed_offset_token:
+            latest_committed_offset_token = 0
+        while True:
+            rows = fn_get_data(latest_committed_offset_token, BATCH_SIZE)
+            if len(rows) > 0:
+                nl_json = "\n".join([row[1] for row in rows])
+                latest_committed_offset_token = rows[-1][0]
+                channel.insert_rows(nl_json, offset_token=latest_committed_offset_token)
+                current_committed_offset_token = (
+                    channel.get_latest_committed_offset_token()
+                )
+                if current_committed_offset_token:
+                    fn_delete_data(current_committed_offset_token)
 
 
 def stream_resort_tickets():
