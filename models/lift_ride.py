@@ -8,7 +8,6 @@ from dataclasses import dataclass
 
 from consts import RESORT_LIFTS
 
-
 @dataclass
 class LiftRide:
     """Lift ride with realistic properties"""
@@ -20,8 +19,19 @@ class LiftRide:
 
     @classmethod
     def generate(cls, rfid, resort, rtime, rider_skill=0.5, counter=0):
-        """Generate a lift ride with realistic lift selection"""
-        # Deterministic txid based on inputs
+        """Generate a lift ride with realistic lift selection based on rider skill
+        
+        Args:
+            rfid: RFID of the ticket or pass
+            resort: Resort name
+            rtime: Ride time
+            rider_skill: Rider skill level (0.0 to 1.0, higher is more skilled)
+            counter: Counter for deterministic ID generation
+            
+        Returns:
+            LiftRide instance
+        """
+        # Generate deterministic ID
         txid_seed = f"{rfid}-{resort}-{rtime.isoformat()}-{counter}"
         txid_hash = hashlib.md5(txid_seed.encode()).hexdigest()
         txid = f"RIDE-{txid_hash[:8]}-{txid_hash[8:16]}"
@@ -29,9 +39,9 @@ class LiftRide:
         # Get available lifts for the resort
         lifts = RESORT_LIFTS[resort]
 
-        # Skill-based lift selection
-        # Beginners prefer earlier lifts in the list (often base/beginner lifts)
-        # Experts prefer later lifts (often more advanced/mountain top lifts)
+        # Select lift based on rider skill level
+        # Beginners (low skill) tend to use lifts at the beginning of the list
+        # Experts (high skill) tend to use lifts at the end of the list
         if rider_skill < 0.3:
             # Beginner - focus on first third of lifts
             max_index = max(1, int(len(lifts) / 3))
@@ -46,7 +56,9 @@ class LiftRide:
             start_index = int(2 * len(lifts) / 3)
             lift_index = random.randint(start_index, len(lifts) - 1)
 
-        lift = lifts[min(lift_index, len(lifts) - 1)]  # Ensure valid index
+        # Ensure index is within range
+        lift_index = min(lift_index, len(lifts) - 1)
+        lift = lifts[lift_index]
 
         return cls(
             txid=txid,
@@ -56,7 +68,7 @@ class LiftRide:
             lift=lift
         )
 
-    def toJSON(self):
+    def to_json(self):
         """Convert to JSON compatible dictionary"""
         return json.dumps({
             "TXID": self.txid,
@@ -65,5 +77,3 @@ class LiftRide:
             "LIFT": self.lift,
             "RESORT": self.resort,
         })
-
-

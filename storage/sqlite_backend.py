@@ -89,7 +89,7 @@ class SQLiteBackend:
 
     def StoreSeasonPass(self, season_pass):
         """Store a season pass with retry logic"""
-        data = season_pass.toJSON()
+        data = season_pass.to_json()
 
         def _insert():
             with self.lock:
@@ -101,7 +101,7 @@ class SQLiteBackend:
 
     def StoreResortTicket(self, resort_ticket):
         """Store a resort ticket with retry logic"""
-        data = resort_ticket.toJSON()
+        data = resort_ticket.to_json()
 
         def _insert():
             with self.lock:
@@ -113,7 +113,7 @@ class SQLiteBackend:
 
     def StoreLiftRide(self, lift_ride):
         """Store a lift ride with retry logic"""
-        data = lift_ride.toJSON()
+        data = lift_ride.to_json()
 
         def _insert():
             with self.lock:

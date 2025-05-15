@@ -1,5 +1,66 @@
 from zoneinfo import ZoneInfo
 
+# Resorts configuration
+RESORTS = ["Vail", "Beaver Creek", "Breckenridge", "Keystone", "Heavenly"]
+RESORT_WEIGHTS = [0.25, 0.2, 0.25, 0.2, 0.1]
+RESORT_TZS = [
+    ZoneInfo("America/Denver"),
+    ZoneInfo("America/Denver"),
+    ZoneInfo("America/Denver"),
+    ZoneInfo("America/Denver"),
+    ZoneInfo("America/Los_Angeles"),
+]
+
+# Resort profiles for realistic pricing
+RESORT_PROFILES = {
+    'Vail': {
+        'ticket_base_price': 120,
+        'weekend_multiplier': 1.6,
+    },
+    'Beaver Creek': {
+        'ticket_base_price': 110,
+        'weekend_multiplier': 1.5,
+    },
+    'Breckenridge': {
+        'ticket_base_price': 100,
+        'weekend_multiplier': 1.7,
+    },
+    'Keystone': {
+        'ticket_base_price': 90,
+        'weekend_multiplier': 1.6,
+    },
+    'Heavenly': {
+        'ticket_base_price': 110,
+        'weekend_multiplier': 1.5,
+    }
+}
+
+# Ticket duration options and weights
+TICKET_DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7]
+TICKET_DAY_WEIGHTS = [0.35, 0.35, 0.1, 0.05, 0.05, 0.05, 0.05]
+
+# Ride timing constants (in minutes)
+RIDE_MIN_INTERVAL = 10  # Minimum time between rides
+RIDE_MAX_INTERVAL = 30  # Maximum time between rides
+REST_MIN_INTERVAL = 30  # Minimum rest time
+REST_MAX_INTERVAL = 60  # Maximum rest time
+
+# Riding probability constants - increased for debugging
+DAILY_TICKET_RIDING_CHANCE = 0.45  # Chance of a daily ticket holder riding on a given day
+SEASON_PASS_RIDING_CHANCE = 0.05   # Chance of a season pass holder riding on a given day
+
+# Generator processing limits
+MAX_TICKETS_PER_LOOP = 1000        # Maximum tickets to process per loop
+MAX_PASSES_PER_LOOP = 200          # Maximum passes to process per loop
+
+# Simulation speed options
+SPEED_SETTINGS = {
+    "TURTLE": 120,   # 1 day = 12 minutes (120x multiplier)
+    "LLAMA": 480,    # 1 day = 3 minutes (480x multiplier)
+    "CHEETAH": 960,  # 1 day = 90 seconds (960x multiplier)
+}
+
+# Lift configurations by resort
 VAIL_LIFTS = [
     "Eagle Bahn Gondola",
     "Gondola One",
@@ -152,7 +213,6 @@ HEAVENLY_LIFTS = [
     "Bear Cave Carpet",
     "Tubing Lift",
 ]
-# TODO ADD MORE RESORTS?
 
 RESORT_LIFTS = {
     "Vail": VAIL_LIFTS,
@@ -161,16 +221,3 @@ RESORT_LIFTS = {
     "Keystone": KEYSTONE_LIFTS,
     "Heavenly": HEAVENLY_LIFTS,
 }
-RESORTS = ["Vail", "Beaver Creek", "Breckenridge", "Keystone", "Heavenly"]
-RESORT_WEIGHTS = [0.25, 0.2, 0.25, 0.2, 0.1]
-RESORT_TZS = [
-    ZoneInfo("America/Denver"),
-    ZoneInfo("America/Denver"),
-    ZoneInfo("America/Denver"),
-    ZoneInfo("America/Denver"),
-    ZoneInfo("America/Los_Angeles"),
-]
-RIDE_MIN = 10
-RIDE_MAX = 30
-REST_MIN = 30
-REST_MAX = 60
