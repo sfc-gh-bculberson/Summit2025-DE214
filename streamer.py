@@ -13,13 +13,13 @@ from snowflake.ingest import SnowflakeStreamingIngestClient
 from storage.sqlite_backend import SQLiteBackend
 from utils import configure_logging
 
-configure_logging()
+configure_logging(logging.DEBUG)
 logger = logging.getLogger('ski_data_streamer')
 
 load_dotenv()
 
 # parameters
-channel_name = "DE214-CODESPACE"
+channel_name = "DE214-CODESPACE-2"
 database_name = os.getenv("DATABASE_NAME")
 schema_name = os.getenv("SCHEMA_NAME")
 client_name = os.getenv("CLIENT_NAME")

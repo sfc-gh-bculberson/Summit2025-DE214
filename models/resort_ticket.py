@@ -3,43 +3,17 @@ Resort ticket model for ski resort data.
 """
 import datetime
 import hashlib
-import random
 import json
+import random
 from dataclasses import dataclass, field
 from typing import Optional
 
 from models.customer import Customer
-from consts import RIDE_MIN, RIDE_MAX, REST_MIN, REST_MAX
-
-# Constants for resort ticket generation
-DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7]
-DAY_WEIGHTS = [0.35, 0.35, 0.1, 0.05, 0.05, 0.05, 0.05]
-CHANCE_OF_RIDING_DAILY_TICKET = 0.45
-
-# Resort profiles for realistic pricing
-RESORT_PROFILES = {
-    'Vail': {
-        'ticket_base_price': 120,
-        'weekend_multiplier': 1.6,
-    },
-    'Beaver Creek': {
-        'ticket_base_price': 110,
-        'weekend_multiplier': 1.5,
-    },
-    'Breckenridge': {
-        'ticket_base_price': 100,
-        'weekend_multiplier': 1.7,
-    },
-    'Keystone': {
-        'ticket_base_price': 90,
-        'weekend_multiplier': 1.6,
-    },
-    'Heavenly': {
-        'ticket_base_price': 110,
-        'weekend_multiplier': 1.5,
-    }
-}
-
+from consts import (
+    TICKET_DAY_OPTIONS, TICKET_DAY_WEIGHTS, DAILY_TICKET_RIDING_CHANCE,
+    RIDE_MIN_INTERVAL, RIDE_MAX_INTERVAL, REST_MIN_INTERVAL, REST_MAX_INTERVAL,
+    RESORT_PROFILES
+)
 
 @dataclass
 class ResortTicket:
@@ -64,7 +38,7 @@ class ResortTicket:
     def generate(cls, resort, p_time, faker, counter=0):
         """Generate a resort ticket with realistic parameters"""
         # Generate realistic values
-        days = random.choices(DAY_OPTIONS, weights=DAY_WEIGHTS, k=1)[0]
+        days = random.choices(TICKET_DAY_OPTIONS, weights=TICKET_DAY_WEIGHTS, k=1)[0]
         exp = p_time + datetime.timedelta(days=days * 2)
 
         # Generate customer info
@@ -106,7 +80,7 @@ class ResortTicket:
 
         return ticket
 
-    def toJSON(self):
+    def to_json(self):
         """Convert to JSON compatible dictionary"""
         return json.dumps({
             "TXID": self.txid,
@@ -123,11 +97,11 @@ class ResortTicket:
             "RESORT": self.resort,
         })
 
-    def isExpired(self, p_time):
+    def is_expired(self, p_time):
         """Check if the ticket is expired"""
         return self._exp < p_time
 
-    def isRidingToday(self, p_time):
+    def is_riding_today(self, p_time):
         """Determine if the ticket holder is riding today"""
         # Only check once per day
         if (self._last_ride_date_checked is None or
@@ -136,7 +110,7 @@ class ResortTicket:
             self._last_ride_date_checked = p_time
 
             # Chance to ride today
-            if random.random() <= CHANCE_OF_RIDING_DAILY_TICKET:
+            if random.random() <= DAILY_TICKET_RIDING_CHANCE:
                 self._last_ride_date = p_time
                 return True, self.resort
 
@@ -149,18 +123,30 @@ class ResortTicket:
 
         return False, None
 
-    def needsRide(self, p_time):
-        """Determine if the rider needs a new lift ride"""
-        # Time between rides - normal or rest break
+    def needs_ride(self, p_time):
+        """Determine if the rider needs a new lift ride
+
+        Uses RIDE_MIN_INTERVAL/RIDE_MAX_INTERVAL for normal ride intervals,
+        and REST_MIN_INTERVAL/REST_MAX_INTERVAL for occasional longer breaks.
+
+        Args:
+            p_time: Current world time
+
+        Returns:
+            True if a new lift ride should be generated, False otherwise
+        """
+
+        # Determine time between rides
+        # 10% chance of a longer break (REST_MIN_INTERVAL to REST_MAX_INTERVAL)
+        # 90% chance of a normal interval (RIDE_MIN_INTERVAL to RIDE_MAX_INTERVAL)
         if random.random() <= 0.1:  # 10% chance of longer break
-            wait_time = random.randrange(REST_MIN, REST_MAX)
+            wait_time = random.randrange(REST_MIN_INTERVAL, REST_MAX_INTERVAL)
         else:
-            wait_time = random.randrange(RIDE_MIN, RIDE_MAX)
+            wait_time = random.randrange(RIDE_MIN_INTERVAL, RIDE_MAX_INTERVAL)
 
         # First ride or enough time has passed
         if (self._last_lift_ridden is None or
                 self._last_lift_ridden + datetime.timedelta(minutes=wait_time) < p_time):
-
             self._last_lift_ridden = p_time
             return True
 

@@ -3,17 +3,16 @@ Season pass model for ski resort data.
 """
 import datetime
 import hashlib
-import random
 import json
+import random
 from dataclasses import dataclass, field
 from typing import Optional
 
+from consts import (
+    RESORTS, RESORT_WEIGHTS, SEASON_PASS_RIDING_CHANCE,
+    RIDE_MIN_INTERVAL, RIDE_MAX_INTERVAL, REST_MIN_INTERVAL, REST_MAX_INTERVAL
+)
 from models.customer import Customer
-from consts import RESORTS, RESORT_WEIGHTS, RIDE_MIN, RIDE_MAX, REST_MIN, REST_MAX
-
-# Chance of a season pass holder riding on any given day
-CHANCE_OF_RIDING_SEASON_PASS = 0.05
-
 
 @dataclass
 class SeasonPass:
@@ -87,7 +86,7 @@ class SeasonPass:
 
         return season_pass
 
-    def toJSON(self):
+    def to_json(self):
         """Convert to JSON compatible dictionary"""
         return json.dumps({
             "TXID": self.txid,
@@ -102,11 +101,11 @@ class SeasonPass:
             "EMERGENCY_CONTACT": self.customer.emergency_contact,
         })
 
-    def isExpired(self, p_time):
+    def is_expired(self, p_time):
         """Check if the pass is expired"""
         return self._exp < p_time
 
-    def isRidingToday(self, p_time):
+    def is_riding_today(self, p_time):
         """Determine if the pass holder is riding today"""
         # Only check once per day
         if (self._last_ride_date_checked is None or
@@ -115,7 +114,7 @@ class SeasonPass:
             self._last_ride_date_checked = p_time
 
             # Chance to ride today
-            if random.random() <= CHANCE_OF_RIDING_SEASON_PASS:
+            if random.random() <= SEASON_PASS_RIDING_CHANCE:
                 self._last_resort = random.choices(RESORTS, weights=RESORT_WEIGHTS, k=1)[0]
                 self._last_ride_date = p_time
                 return True, self._last_resort
@@ -129,19 +128,35 @@ class SeasonPass:
 
         return False, None
 
-    def needsRide(self, p_time):
-        """Determine if the rider needs a new lift ride"""
-        # Time between rides - normal or rest break
+    def needs_ride(self, p_time):
+        """Determine if the rider needs a new lift ride
+
+        Uses RIDE_MIN_INTERVAL/RIDE_MAX_INTERVAL for normal ride intervals,
+        and REST_MIN_INTERVAL/REST_MAX_INTERVAL for occasional longer breaks.
+
+        Args:
+            p_time: Current world time
+
+        Returns:
+            True if a new lift ride should be generated, False otherwise
+        """
+
+        # Determine time between rides
+        # 10% chance of a longer break (REST_MIN_INTERVAL to REST_MAX_INTERVAL)
+        # 90% chance of a normal interval (RIDE_MIN_INTERVAL to RIDE_MAX_INTERVAL)
         if random.random() <= 0.1:  # 10% chance of longer break
-            wait_time = random.randrange(REST_MIN, REST_MAX)
+            wait_time = random.randrange(REST_MIN_INTERVAL, REST_MAX_INTERVAL)
         else:
-            wait_time = random.randrange(RIDE_MIN, RIDE_MAX)
+            wait_time = random.randrange(RIDE_MIN_INTERVAL, RIDE_MAX_INTERVAL)
 
         # First ride or enough time has passed
         if (self._last_lift_ridden is None or
                 self._last_lift_ridden + datetime.timedelta(minutes=wait_time) < p_time):
-
             self._last_lift_ridden = p_time
             return True
 
         return False
+
+    @property
+    def exp(self):
+        return self._exp
