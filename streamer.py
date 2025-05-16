@@ -1,8 +1,7 @@
-#!/usr/bin/env python
-
 import logging
 import os
 import threading
+import time
 
 from contextlib import closing
 from pathlib import Path
@@ -19,7 +18,7 @@ logger = logging.getLogger('ski_data_streamer')
 load_dotenv()
 
 # parameters
-channel_name = "DE214-CODESPACE-2"
+channel_name = "DE214-CODESPACE"
 database_name = os.getenv("DATABASE_NAME")
 schema_name = os.getenv("SCHEMA_NAME")
 client_name = os.getenv("CLIENT_NAME")
@@ -28,6 +27,7 @@ user_name = os.getenv("SNOWFLAKE_USER")
 private_key = Path('rsa_key.p8').read_text()
 BATCH_SIZE = 10000
 
+LOOP_LOG_INTERVAL_SECONDS = 10  # Log every N seconds
 
 def stream_data(pipe_name, fn_get_data, fn_delete_data):
     # Write this function to stream data to Snowflake
@@ -54,13 +54,22 @@ def stream_lift_rides():
 
 
 def main():
+    logger.info("Starting ski data streamer with 3 threads")
+
     fns = [
-        threading.Thread(target=stream_resort_tickets),
-        threading.Thread(target=stream_season_passes),
-        threading.Thread(target=stream_lift_rides),
+        threading.Thread(target=stream_resort_tickets, name="ResortTickets"),
+        threading.Thread(target=stream_season_passes, name="SeasonPasses"),
+        threading.Thread(target=stream_lift_rides, name="LiftRides"),
     ]
+
+    logger.info(f"Created {len(fns)} threads")
+
     for fn in fns:
         fn.start()
+        logger.info(f"Started thread: {fn.name}")
+
+    logger.info("All threads started, waiting for completion...")
+
     for fn in fns:
         fn.join()
 
