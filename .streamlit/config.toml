@@ -1,0 +1,9 @@
+[theme]
+primaryColor = "#008080"                 # A pleasant Teal
+backgroundColor = "#FEFEFE"               # Light grey background for the main area
+secondaryBackgroundColor = "#E0E2E6"       # Slightly darker grey for the sidebar
+textColor = "#262730"                     # Dark text for good readability
+font = "sans serif"                        # Clean sans-serif font
+
+[runner]
+fastReruns = true
