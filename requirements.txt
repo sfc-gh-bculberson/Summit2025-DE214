@@ -23,9 +23,7 @@ pytz==2025.2
 requests==2.32.3
 setuptools==78.1.0
 six==1.17.0
-#snowflake-connector-python==3.14.0
-snowflake-snowpark-python[modin] #==1.32.0
-# Using a relative path that works both locally and in container
+snowflake-connector-python==3.14.0
 snowflake_ingest @ file:./lib/snowflake_ingest-0.0.1.tar.gz
 sortedcontainers==2.4.0
 tomlkit==0.13.2
