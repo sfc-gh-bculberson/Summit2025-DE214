@@ -2,7 +2,7 @@
 
 In this hands-on lab, you'll build a production-ready streaming data pipeline using Python and Snowflake's new Rowset API. Learn how to efficiently ingest real-time data streams into Snowflake, create automated aggregations, and visualize insights through an interactive Streamlit application. You'll walk away with practical experience in modern data engineering techniques and a functional end-to-end pipeline that can handle continuous data flows at scale.
 
-Docs for Snowpipie Streaming Rowset API Private Preview: https://docs.snowflake.com/en/LIMITEDACCESS/snowpipe-streaming-rowset-api/rowset-api-intro
+Docs for Snowpipe Streaming Rowset API Private Preview: https://docs.snowflake.com/en/LIMITEDACCESS/snowpipe-streaming-rowset-api/rowset-api-intro
 
 ## Database Setup
 
@@ -24,7 +24,8 @@ GRANT OWNERSHIP ON SCHEMA STREAMING_INGEST.STREAMING_INGEST TO ROLE STREAMING_IN
 
 CREATE USER STREAMING_INGEST LOGIN_NAME='STREAMING_INGEST' DEFAULT_WAREHOUSE='STREAMING_INGEST', DEFAULT_NAMESPACE='STREAMING_INGEST.STREAMING_INGEST', DEFAULT_ROLE='STREAMING_INGEST', TYPE=SERVICE;
 GRANT ROLE STREAMING_INGEST TO USER STREAMING_INGEST;
-GRANT ROLE STREAMING_INGEST TO USER <YOUR_USERNAME>;
+SET USERNAME=CURRENT_USER();
+GRANT ROLE STREAMING_INGEST TO USER IDENTIFIER($USERNAME);
 
 ```
 
@@ -118,23 +119,20 @@ docker compose build
 docker compose up
 ```
 
-## Create some dynamic table to prepare data for reporting
+## Create dynamic tables to prepare data for reporting
 
-```sql
+Please create a notebook in Snowflake by importing `transformation_notebook.ipynb`.  From there,  you will build out various dynamic tables to prepare the streaming data for reporting.
 
-CREATE OR REPLACE DYNAMIC TABLE LIFT_RIDES_BY_DAY TARGET_LAG='10 minutes' WAREHOUSE = STREAMING_INGEST AS
-SELECT COUNT(*) as c, RESORT, LIFT, DATE_TRUNC(day, RIDE_TIME) as d FROM LIFT_RIDE GROUP BY all;
+## Deploy Streamlit app to visualize the data
 
-CREATE OR REPLACE DYNAMIC TABLE BUSIEST_LIFTS TARGET_LAG='10 minutes' WAREHOUSE = STREAMING_INGEST AS
-SELECT RESORT, LIFT, c FROM LIFT_RIDES_BY_DAY where D = current_date() order by c desc limit 10;
-
-CREATE OR REPLACE DYNAMIC TABLE RESORT_VISITORS_BY_DAY TARGET_LAG='10 minutes' WAREHOUSE = STREAMING_INGEST AS
-SELECT COUNT(DISTINCT RFID) as c, RESORT, DATE_TRUNC(day, RIDE_TIME) as d FROM LIFT_RIDE GROUP BY all;
-
-CREATE OR REPLACE DYNAMIC TABLE RESORT_REVENUE_BY_DAY TARGET_LAG='10 minutes' WAREHOUSE = STREAMING_INGEST AS
-SELECT SUM(PRICE_USD) as revenue, RESORT, DATE_TRUNC(day, PURCHASE_TIME) as d FROM RESORT_TICKET GROUP BY all;
-
-CREATE OR REPLACE DYNAMIC TABLE SEASON_PASS_REVENUE_BY_MONTH TARGET_LAG='10 minutes' WAREHOUSE = STREAMING_INGEST AS
-SELECT SUM(PRICE_USD) as revenue, DATE_TRUNC(month, PURCHASE_TIME) as m FROM SEASON_PASS GROUP BY all;
-
+```bash
+streamlit run streamlit_app.py
 ```
+
+## Next Steps
+- Migrate various SQL DTs to Snowpark and Pandas, to build more of the data pipeline in Python
+- Deploy notebook via SnowCLI
+- Migrate Streamlit app into project template 
+- Deploy Streamlit app via SnowCLI
+- Better purge data from generator to avoid large memory consumption over long simulations
+- Fix the streamer loop to align with quickstart

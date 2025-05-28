@@ -1,18 +1,20 @@
-#!/usr/bin/env python
-
 import logging
 import os
 import threading
+import time
 
 from contextlib import closing
 from pathlib import Path
 from dotenv import load_dotenv
-from SQLiteBackend import SQLiteBackend
 
 from snowflake.ingest import SnowflakeStreamingIngestClient
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+from storage.sqlite_backend import SQLiteBackend
+from utils import configure_logging
+
+configure_logging(logging.DEBUG)
+logger = logging.getLogger('ski_data_streamer')
+
 load_dotenv()
 
 # parameters
@@ -25,11 +27,12 @@ user_name = os.getenv("SNOWFLAKE_USER")
 private_key = Path('rsa_key.p8').read_text()
 BATCH_SIZE = 10000
 
+LOOP_LOG_INTERVAL_SECONDS = 10  # Log every N seconds
 
 def stream_data(pipe_name, fn_get_data, fn_delete_data):
     # Write this function to stream data to Snowflake
     while True:
-        logger.info("sending rows with batching")
+        logger.info("Sending rows with batching")
 
 
 def stream_resort_tickets():
@@ -51,13 +54,22 @@ def stream_lift_rides():
 
 
 def main():
+    logger.info("Starting ski data streamer with 3 threads")
+
     fns = [
-        threading.Thread(target=stream_resort_tickets),
-        threading.Thread(target=stream_season_passes),
-        threading.Thread(target=stream_lift_rides),
+        threading.Thread(target=stream_resort_tickets, name="ResortTickets"),
+        threading.Thread(target=stream_season_passes, name="SeasonPasses"),
+        threading.Thread(target=stream_lift_rides, name="LiftRides"),
     ]
+
+    logger.info(f"Created {len(fns)} threads")
+
     for fn in fns:
         fn.start()
+        logger.info(f"Started thread: {fn.name}")
+
+    logger.info("All threads started, waiting for completion...")
+
     for fn in fns:
         fn.join()
 

@@ -1,3 +1,4 @@
 .env
 rsa_key.*
 .DS_Store
+unversioned/
