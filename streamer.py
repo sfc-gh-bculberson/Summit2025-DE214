@@ -32,7 +32,7 @@ LOOP_LOG_INTERVAL_SECONDS = 10  # Log every N seconds
 def stream_data(pipe_name, fn_get_data, fn_delete_data):
     # Write this function to stream data to Snowflake
     while True:
-        logger.info("sending rows with batching")
+        logger.info("Sending rows with batching")
 
 
 def stream_resort_tickets():
