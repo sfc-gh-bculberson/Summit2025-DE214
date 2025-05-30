@@ -121,11 +121,16 @@ docker compose up
 
 ## Create dynamic tables to prepare data for reporting
 
-Please create a notebook in Snowflake by importing `transformation_notebook.ipynb`.  From there,  you will build out various dynamic tables to prepare the streaming data for reporting.
+Please create a notebook in Snowflake by importing `transformation_notebook.ipynb`.  From there,  you will build out various views and dynamic tables to prepare the streaming data for reporting.
 
 ## Deploy Streamlit app to visualize the data
 
+The easiest way to get started with the Streamlit example app is to create a new Streamlit App in Snowsight, and copy the contents of `streamlit_app.py` into the app editor.
+
+### Local Streamlit development
+If you want to develop or run the app locally, you can do so by installing the required packages in a clean Python 3.12 environment and then starting the app using `streamlit run`.
 ```bash
+pip install -r requirements.txt -r requirements-streamlit.txt
 streamlit run streamlit_app.py
 ```
 
