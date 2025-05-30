@@ -12,6 +12,14 @@ DEFAULT_CACHE_TTL = 60  # seconds
 NETWORK_PAGE_NAME = "Network Overview"
 RESORT_PAGE_NAME = "Mountain Operations Center"
 
+# High-level page configuration
+# This must be the first Streamlit command
+st.set_page_config(
+    page_title="Ski Resort Operations Hub",
+    page_icon="⛷️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # Initialize Snowpark session
 @st.cache_resource
@@ -119,14 +127,14 @@ def get_network_kpis(time_period: str) -> tuple[pd.DataFrame, pd.DataFrame]:
         previous_filter = (col("RIDE_DATE") >= dates['prev_month_start']) & (col("RIDE_DATE") < dates['month_start'])
 
     # Current period metrics
-    current_metrics_df = session.table("V_NETWORK_METRICS").filter(current_filter).agg(
+    current_metrics_df = session.table("V_DAILY_NETWORK_METRICS").filter(current_filter).agg(
         sum(col("TOTAL_VISITORS")).alias("total_visitors"),
         sum(col("TOTAL_REVENUE")).alias("total_revenue"),
         avg(col("AVG_CAPACITY")).alias("avg_capacity"),
         sum(col("TOTAL_RIDES")).alias("total_rides")
     )
     # Previous period metrics
-    previous_metrics_df = session.table("V_NETWORK_METRICS").filter(previous_filter).agg(
+    previous_metrics_df = session.table("V_DAILY_NETWORK_METRICS").filter(previous_filter).agg(
         sum(col("TOTAL_VISITORS")).alias("prev_visitors"),
         sum(col("TOTAL_REVENUE")).alias("prev_revenue"),
         sum(col("TOTAL_RIDES")).alias("prev_rides")
@@ -144,7 +152,7 @@ def get_network_resort_comparison(time_period: str) -> pd.DataFrame:
         date_filter = col("RIDE_DATE") >= dates['week_ago']
     else:  # Month to Date
         date_filter = col("RIDE_DATE") >= dates['month_start']
-    results_df = (session.table("V_DAILY_RESORT_SUMMARY")
+    results_df = (session.table("DAILY_RESORT_SUMMARY")
                   .filter(date_filter)
                   .group_by("RESORT")
                   .agg(
@@ -165,7 +173,7 @@ def get_network_time_series_data(time_period: str) -> pd.DataFrame:
         date_filter = col("RIDE_DATE") >= dates['week_ago']
     else:  # Month to Date
         date_filter = col("RIDE_DATE") >= dates['month_start']
-    results_df = (session.table("V_DAILY_RESORT_SUMMARY")
+    results_df = (session.table("DAILY_RESORT_SUMMARY")
                   .filter(date_filter)
                   .select("RIDE_DATE", "RESORT",
                           col("PEAK_VISITORS").alias("VISITORS"),
@@ -184,7 +192,7 @@ def get_network_status_by_resort(time_period: str) -> pd.DataFrame:
         date_filter = col("RIDE_DATE") >= dates['week_ago']
     else:  # Month to Date
         date_filter = col("RIDE_DATE") >= dates['month_start']
-    results_df = (session.table("V_DAILY_RESORT_SUMMARY")
+    results_df = (session.table("DAILY_RESORT_SUMMARY")
                   .filter(date_filter)
                   .group_by("RESORT")
                   .agg(
@@ -202,7 +210,7 @@ def get_network_status_by_resort(time_period: str) -> pd.DataFrame:
 @st.cache_data(ttl=DEFAULT_CACHE_TTL)
 def get_available_resorts() -> pd.DataFrame:
     """Fetch list of available resorts."""
-    results_df = (session.table("V_DAILY_RESORT_SUMMARY")
+    results_df = (session.table("DAILY_RESORT_SUMMARY")
                   .select("RESORT")
                   .distinct()
                   .order_by("RESORT"))
@@ -213,7 +221,7 @@ def get_resort_operations_data(selected_resort: str) -> pd.DataFrame:
     """Fetch latest operational metrics for a specific resort from most recent hourly data."""
     latest_date = get_current_date()
     latest_hour = get_current_hour()
-    results_df = (session.table("V_HOURLY_RESORT_SUMMARY")
+    results_df = (session.table("HOURLY_RESORT_SUMMARY")
                   .filter((col("RESORT") == selected_resort) &
                           (col("RIDE_DATE") == latest_date) &
                           (col("RIDE_HOUR") == latest_hour))
@@ -227,7 +235,7 @@ def get_resort_operations_data(selected_resort: str) -> pd.DataFrame:
 @st.cache_data(ttl=DEFAULT_CACHE_TTL)
 def get_resort_top_lifts(selected_resort: str) -> pd.DataFrame:
     """Fetch top performing lifts for a resort from last 30 minutes."""
-    results_df = (session.table("V_LIFT_PERFORMANCE")
+    results_df = (session.table("V_RT_LIFT_PERFORMANCE")
                   .filter((col("RESORT") == selected_resort) &
                           (col("USAGE_RANK") <= 5))
                   .select("LIFT",
@@ -243,7 +251,7 @@ def get_resort_top_lifts(selected_resort: str) -> pd.DataFrame:
 def get_resort_hourly_patterns(selected_resort: str) -> pd.DataFrame:
     """Fetch hourly visitor patterns for a resort from most recent date."""
     latest_date = get_current_date()
-    results_df = (session.table("V_HOURLY_RESORT_SUMMARY")
+    results_df = (session.table("HOURLY_RESORT_SUMMARY")
                   .filter((col("RESORT") == selected_resort) & (col("RIDE_DATE") == latest_date))
                   .select("RIDE_HOUR", "VISITOR_COUNT", "CAPACITY_PCT", "TOTAL_REVENUE")
                   .order_by("RIDE_HOUR"))
@@ -253,7 +261,7 @@ def get_resort_hourly_patterns(selected_resort: str) -> pd.DataFrame:
 def get_resort_revenue_performance(selected_resort: str) -> pd.DataFrame:
     """Fetch revenue performance metrics for a resort from most recent date."""
     latest_date = get_current_date()
-    results_df = (session.table("V_REVENUE_PERFORMANCE")
+    results_df = (session.table("V_DAILY_REVENUE_PERFORMANCE")
                   .filter((col("RESORT") == selected_resort) & (col("RIDE_DATE") == latest_date))
                   .select("TOTAL_REVENUE", "REVENUE_TARGET_USD", "REVENUE_TARGET_PCT", "PERFORMANCE_STATUS"))
     return results_df.to_pandas()
@@ -261,7 +269,7 @@ def get_resort_revenue_performance(selected_resort: str) -> pd.DataFrame:
 @st.cache_data(ttl=DEFAULT_CACHE_TTL)
 def get_resort_weekly_performance(selected_resort: str) -> pd.DataFrame:
     """Fetch weekly performance summary for a resort."""
-    results_df = (session.table("V_WEEKLY_RESORT_SUMMARY")
+    results_df = (session.table("WEEKLY_RESORT_SUMMARY")
                   .filter(col("RESORT") == selected_resort)
                   .select("WEEK_START_DATE", "WEEK_PEAK_VISITORS", "AVG_DAILY_VISITORS",
                           "WEEK_TOTAL_REVENUE", "AVG_DAILY_REVENUE", "WEEK_PEAK_CAPACITY_PCT")
@@ -316,13 +324,6 @@ def style_chart(fig):
     )
     return fig
 
-# High-level page configuration
-st.set_page_config(
-    page_title="Ski Resort Operations Hub",
-    page_icon="⛷️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 # Initialize session state
 # Default to the network overview page
 if 'current_page' not in st.session_state:
