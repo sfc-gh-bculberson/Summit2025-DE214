@@ -42,23 +42,30 @@ session = init_session()
 @st.cache_data(ttl=DEFAULT_CACHE_TTL)
 def get_date_values():
     """Get max ride date and calculated date ranges based off that, due to simulation clock in the future."""
+    # TODO: shift to resort-specific time due to timing issues with simulation clock
     # noinspection SqlResolve
     query = """
-    WITH max_ride_info AS (
+    WITH latest_raw_data AS (
         SELECT             
-            MAX(RIDE_TIME) as last_data_timestamp
+            MAX(RIDE_TIME) as latest_timestamp
         FROM LIFT_RIDE
+    ),
+    latest_processed_data AS (
+        SELECT
+            MAX(RIDE_HOUR_TIMESTAMP) as latest_timestamp
+        FROM HOURLY_LIFT_ACTIVITY
     )
-    SELECT 
-        last_data_timestamp,
-        DATE(last_data_timestamp) as last_data_date,
-        HOUR(last_data_timestamp) as last_data_hour,      
+    SELECT
+        raw.latest_timestamp,
+        --use processed timestamp for most analytics, to avoid gaps in data when simulation clock advances but DTs haven't refreshed yet 
+        DATE(processed.latest_timestamp) as last_data_date,  
+        HOUR(processed.latest_timestamp) as last_data_hour,      
         last_data_date - INTERVAL '1 day' as yesterday,
         last_data_date - INTERVAL '7 days' as week_ago,
         last_data_date - INTERVAL '14 days' as two_weeks_ago,
         DATE_TRUNC('month', last_data_date) as month_start,
         DATE_TRUNC('month', last_data_date - INTERVAL '1 month') as prev_month_start
-    FROM max_ride_info
+    FROM latest_raw_data raw cross join latest_processed_data processed
     """
     result = session.sql(query).collect()[0]
     return {
@@ -128,16 +135,16 @@ def get_network_kpis(time_period: str) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     # Current period metrics
     current_metrics_df = session.table("V_DAILY_NETWORK_METRICS").filter(current_filter).agg(
-        sum(col("TOTAL_VISITORS")).alias("total_visitors"),
-        sum(col("TOTAL_REVENUE")).alias("total_revenue"),
-        avg(col("AVG_CAPACITY")).alias("avg_capacity"),
-        sum(col("TOTAL_RIDES")).alias("total_rides")
+        sum(col("TOTAL_NETWORK_VISITORS")).alias("total_visitors"),
+        sum(col("TOTAL_NETWORK_REVENUE")).alias("total_revenue"),
+        avg(col("AVG_NETWORK_CAPACITY_PCT")).alias("avg_capacity"),
+        sum(col("TOTAL_NETWORK_RIDES")).alias("total_rides")
     )
     # Previous period metrics
     previous_metrics_df = session.table("V_DAILY_NETWORK_METRICS").filter(previous_filter).agg(
-        sum(col("TOTAL_VISITORS")).alias("prev_visitors"),
-        sum(col("TOTAL_REVENUE")).alias("prev_revenue"),
-        sum(col("TOTAL_RIDES")).alias("prev_rides")
+        sum(col("TOTAL_NETWORK_VISITORS")).alias("prev_visitors"),
+        sum(col("TOTAL_NETWORK_REVENUE")).alias("prev_revenue"),
+        sum(col("TOTAL_NETWORK_RIDES")).alias("prev_rides")
     )
 
     return current_metrics_df.to_pandas(), previous_metrics_df.to_pandas()
@@ -156,7 +163,7 @@ def get_network_resort_comparison(time_period: str) -> pd.DataFrame:
                   .filter(date_filter)
                   .group_by("RESORT")
                   .agg(
-        sum(col("PEAK_VISITORS")).alias("TOTAL_VISITORS"),
+        sum(col("TOTAL_VISITORS")).alias("TOTAL_VISITORS"),
         sum(col("TOTAL_REVENUE")).alias("TOTAL_REVENUE"),
         avg(col("AVG_CAPACITY_PCT")).alias("AVG_CAPACITY"),
         sum(col("TOTAL_RIDES")).alias("TOTAL_RIDES")
@@ -176,7 +183,7 @@ def get_network_time_series_data(time_period: str) -> pd.DataFrame:
     results_df = (session.table("DAILY_RESORT_SUMMARY")
                   .filter(date_filter)
                   .select("RIDE_DATE", "RESORT",
-                          col("PEAK_VISITORS").alias("VISITORS"),
+                          col("TOTAL_VISITORS").alias("VISITORS"),
                           col("TOTAL_REVENUE").alias("REVENUE"),
                           col("AVG_CAPACITY_PCT").alias("CAPACITY_PCT"))
                   .order_by("RIDE_DATE", "RESORT"))
@@ -196,7 +203,7 @@ def get_network_status_by_resort(time_period: str) -> pd.DataFrame:
                   .filter(date_filter)
                   .group_by("RESORT")
                   .agg(
-        sum(col("PEAK_VISITORS")).alias("CURRENT_VISITORS"),
+        sum(col("TOTAL_VISITORS")).alias("CURRENT_VISITORS"),
         avg(col("AVG_CAPACITY_PCT")).alias("CAPACITY_PCT"),
         sum(col("TOTAL_REVENUE")).alias("REVENUE")
     )
@@ -237,13 +244,13 @@ def get_resort_top_lifts(selected_resort: str) -> pd.DataFrame:
     """Fetch top performing lifts for a resort from last 30 minutes."""
     results_df = (session.table("V_RT_LIFT_PERFORMANCE")
                   .filter((col("RESORT") == selected_resort) &
-                          (col("USAGE_RANK") <= 5))
+                          (col("USAGE_RANK_IN_RESORT") <= 5))
                   .select("LIFT",
                           col("RIDES_30MIN").alias("RIDES_30MIN"),
                           col("VISITORS_30MIN").alias("VISITORS_30MIN"),
-                          col("RIDES_PER_HOUR").alias("RIDES_PER_HOUR"),
-                          col("LAST_ACTIVITY").alias("LAST_ACTIVITY"),
-                          col("USAGE_RANK").alias("RANK"))
+                          col("ESTIMATED_RIDES_PER_HOUR").alias("RIDES_PER_HOUR"),
+                          col("LAST_ACTIVITY_TIME").alias("LAST_ACTIVITY"),
+                          col("USAGE_RANK_IN_RESORT").alias("RANK"))
                   .order_by("RANK"))
     return results_df.to_pandas()
 
@@ -271,7 +278,7 @@ def get_resort_weekly_performance(selected_resort: str) -> pd.DataFrame:
     """Fetch weekly performance summary for a resort."""
     results_df = (session.table("WEEKLY_RESORT_SUMMARY")
                   .filter(col("RESORT") == selected_resort)
-                  .select("WEEK_START_DATE", "WEEK_PEAK_VISITORS", "AVG_DAILY_VISITORS",
+                  .select("WEEK_START_DATE", "MAX_DAILY_UNIQUE_VISITORS", "AVG_DAILY_UNIQUE_VISITORS",
                           "WEEK_TOTAL_REVENUE", "AVG_DAILY_REVENUE", "WEEK_PEAK_CAPACITY_PCT")
                   .order_by(desc("WEEK_START_DATE"))
                   .limit(4))
@@ -781,8 +788,8 @@ elif st.session_state.current_page == RESORT_PAGE_NAME:
                 # Format columns that exist
                 format_funcs = {
                     'WEEK_START_DATE': lambda x: pd.to_datetime(x).strftime('%Y-%m-%d'),
-                    'WEEK_PEAK_VISITORS': format_number,
-                    'AVG_DAILY_VISITORS': format_number,
+                    'MAX_DAILY_UNIQUE_VISITORS': format_number,
+                    'AVG_DAILY_UNIQUE_VISITORS': format_number,
                     'WEEK_TOTAL_REVENUE': format_currency,
                     'AVG_DAILY_REVENUE': format_currency,
                     'WEEK_PEAK_CAPACITY_PCT': lambda x: f"{x:.1f}%"
@@ -795,7 +802,7 @@ elif st.session_state.current_page == RESORT_PAGE_NAME:
                 # Select and rename columns
                 column_map = {
                     'WEEK_START_DATE': 'Week Starting',
-                    'WEEK_PEAK_VISITORS': 'Peak Visitors',
+                    'WEEK_PEAK_VISITORS': 'Max Daily Visitors',
                     'AVG_DAILY_VISITORS': 'Avg Daily Visitors',
                     'WEEK_TOTAL_REVENUE': 'Total Revenue',
                     'AVG_DAILY_REVENUE': 'Avg Daily Revenue',
