@@ -3,5 +3,5 @@ channels:
   - https://repo.anaconda.com/pkgs/snowflake
   - nodefaults
 dependencies:
-  - python=3.11
+  - python=3.12
   - pip
