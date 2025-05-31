@@ -1,12 +1,14 @@
 """
 Season pass model for ski resort data.
 """
+import uuid
+
 import datetime
 import hashlib
 import json
 import random
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, List
 
 from consts import (
     RESORTS, RESORT_WEIGHTS, SEASON_PASS_RIDING_CHANCE,
@@ -27,28 +29,33 @@ class SeasonPass:
     # Internal tracking for lift rides
     _exp: datetime.datetime = field(default_factory=datetime.datetime.now)
     _last_ride_date_checked: Optional[datetime.datetime] = None
-    _last_ride_date: Optional[datetime.datetime] = None
+    _last_ride_date: Optional[datetime.datetime] = None # Stores p_time if decided to ride (for needs_ride)
     _last_lift_ridden: Optional[datetime.datetime] = None
     _last_resort: Optional[str] = None
     _rider_skill: float = 0.5  # 0-1 skill level for lift selection
 
+    # Internal tracking of pass usage
+    _actual_days_skied_list: List[datetime.date] = field(default_factory=list) # Stores unique dates skied
+    _will_ride_decision_for_today: Optional[bool] = None # Stores the random choice for the current day
+
+    @property
+    def days_skied_count(self) -> int:
+        """Returns the number of unique days this pass has been used."""
+        return len(self._actual_days_skied_list)
+
+    @property
+    def rider_skill(self) -> float:
+        return self._rider_skill
+
     @classmethod
     def generate(cls, p_time, faker, counter=0):
         """Generate a season pass with realistic parameters"""
-        # Generate realistic values
-        exp = p_time + datetime.timedelta(days=365)
+        exp = p_time + datetime.timedelta(days=365) # Season passes typically valid for a season/year
 
         # Generate customer info
         customer = Customer.generate(faker)
-
-        # Generate deterministic TXID and RFID based on a combination of factors
-        txid_seed = f"{p_time.isoformat()}-season-pass-{customer.name}-{counter}"
-        txid_hash = hashlib.md5(txid_seed.encode()).hexdigest()
-        txid = f"SP-{txid_hash[:8]}-{txid_hash[8:16]}"
-
-        rfid_seed = f"{txid}-{counter}"
-        rfid_hash = hashlib.md5(rfid_seed.encode()).hexdigest()
-        rfid = f"RFID-SP-{rfid_hash[:8]}-{rfid_hash[8:16]}"
+        txid = str(uuid.uuid4())
+        rfid = hex(random.getrandbits(96))
 
         # Season pass pricing - more realistic pricing with tiers
         price_options = [
@@ -57,18 +64,16 @@ class SeasonPass:
             {"price": 537, "weight": 0.05},
             {"price": 407, "weight": 0.05}
         ]
-
         # Calculate total weight
         total_weight = sum(option["weight"] for option in price_options)
 
         # Select price based on weights
-        rand = random.random() * total_weight
+        rand_val = random.random() * total_weight
         cumulative_weight = 0
-        price_usd = price_options[0]["price"]  # Default
-
+        price_usd = price_options[0]["price"]
         for option in price_options:
             cumulative_weight += option["weight"]
-            if rand <= cumulative_weight:
+            if rand_val <= cumulative_weight:
                 price_usd = option["price"]
                 break
 
@@ -99,36 +104,44 @@ class SeasonPass:
             "PHONE": self.customer.phone,
             "EMAIL": self.customer.email,
             "EMERGENCY_CONTACT": self.customer.emergency_contact,
+            "DAYS_USED": len(self._actual_days_skied_list) # Number of unique days skied so far
         })
 
-    def is_expired(self, p_time):
-        """Check if the pass is expired"""
+    def is_expired(self, p_time: datetime.datetime) -> bool:
+        """Check if the pass is expired."""
         return self._exp < p_time
 
-    def is_riding_today(self, p_time):
-        """Determine if the pass holder is riding today"""
-        # Only check once per day
-        if (self._last_ride_date_checked is None or
-                self._last_ride_date_checked.date() < p_time.date()):
+    def is_riding_today(self, p_time: datetime.datetime) -> tuple[bool, Optional[str]]:
+        """
+        Determine if the pass holder is riding today.
+        Tracks unique days skied.
+        """
+        current_date = p_time.date()
 
-            self._last_ride_date_checked = p_time
-
-            # Chance to ride today
-            if random.random() <= SEASON_PASS_RIDING_CHANCE:
-                self._last_resort = random.choices(RESORTS, weights=RESORT_WEIGHTS, k=1)[0]
-                self._last_ride_date = p_time
-                return True, self._last_resort
-
+        if self.is_expired(p_time):
             return False, None
 
-        # Already decided for today
-        if (self._last_ride_date is not None and
-                self._last_ride_date.date() == p_time.date()):
-            return True, self._last_resort
+        # Determine if the holder *chooses* to ride today (random chance, decide once per day)
+        if self._last_ride_date_checked is None or self._last_ride_date_checked.date() < current_date:
+            self._last_ride_date_checked = p_time
+            self._will_ride_decision_for_today = (random.random() <= SEASON_PASS_RIDING_CHANCE)
+            if self._will_ride_decision_for_today:
+                # Choose resort for the day only if they decide to ride
+                self._last_resort = random.choices(RESORTS, weights=RESORT_WEIGHTS, k=1)[0]
+            else:
+                self._last_resort = None # Clear last resort if not riding
+
+        if self._will_ride_decision_for_today:
+            # Record this day as skied if it's a new unique ski day
+            if current_date not in self._actual_days_skied_list:
+                self._actual_days_skied_list.append(current_date)
+
+            self._last_ride_date = p_time # For needs_ride logic
+            return True, self._last_resort # self._last_resort was set when decision was made
 
         return False, None
 
-    def needs_ride(self, p_time):
+    def needs_ride(self, p_time: datetime.datetime) -> bool:
         """Determine if the rider needs a new lift ride
 
         Uses RIDE_MIN_INTERVAL/RIDE_MAX_INTERVAL for normal ride intervals,

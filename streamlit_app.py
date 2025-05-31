@@ -235,7 +235,7 @@ def get_resort_operations_data(selected_resort: str) -> pd.DataFrame:
                   .select(col("VISITOR_COUNT").alias("CURRENT_VISITORS"),
                           col("CAPACITY_PCT").alias("CURRENT_CAPACITY_PCT"),
                           col("TOTAL_RIDES").alias("CURRENT_HOUR_RIDES"),
-                          col("TOTAL_REVENUE").alias("CURRENT_HOUR_REVENUE"),
+                          col("TOTAL_RECOGNIZED_REVENUE").alias("CURRENT_HOUR_REVENUE"),
                           col("CAPACITY_STATUS")))
     return results_df.to_pandas()
 
@@ -260,7 +260,7 @@ def get_resort_hourly_patterns(selected_resort: str) -> pd.DataFrame:
     latest_date = get_current_date()
     results_df = (session.table("HOURLY_RESORT_SUMMARY")
                   .filter((col("RESORT") == selected_resort) & (col("RIDE_DATE") == latest_date))
-                  .select("RIDE_HOUR", "VISITOR_COUNT", "CAPACITY_PCT", "TOTAL_REVENUE")
+                  .select("RIDE_HOUR", "VISITOR_COUNT", "CAPACITY_PCT", "TOTAL_RECOGNIZED_REVENUE")
                   .order_by("RIDE_HOUR"))
     return results_df.to_pandas()
 

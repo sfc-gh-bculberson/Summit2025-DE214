@@ -1,10 +1,13 @@
 """
 Lift ride model for ski resort data.
 """
+import uuid
+
 import hashlib
 import random
 import json
 from dataclasses import dataclass
+from typing import Optional # Added for Optional type hint
 
 from consts import RESORT_LIFTS
 
@@ -14,27 +17,26 @@ class LiftRide:
     txid: str
     rfid: str
     resort: str
-    ride_time: str
+    ride_time: str # ISO format string
     lift: str
+    activation_day_count: Optional[int] = None # New field: Nth day of use for this ticket/pass
 
     @classmethod
-    def generate(cls, rfid, resort, rtime, rider_skill=0.5, counter=0):
+    def generate(cls, rfid, resort, rtime, rider_skill=0.5, counter=0, activation_day_count: Optional[int] = None): # Added activation_day_count
         """Generate a lift ride with realistic lift selection based on rider skill
-        
+
         Args:
             rfid: RFID of the ticket or pass
             resort: Resort name
-            rtime: Ride time
+            rtime: Ride time (datetime object)
             rider_skill: Rider skill level (0.0 to 1.0, higher is more skilled)
             counter: Counter for deterministic ID generation
-            
+            activation_day_count: The Nth day this ticket/pass is being used.
+
         Returns:
             LiftRide instance
         """
-        # Generate deterministic ID
-        txid_seed = f"{rfid}-{resort}-{rtime.isoformat()}-{counter}"
-        txid_hash = hashlib.md5(txid_seed.encode()).hexdigest()
-        txid = f"RIDE-{txid_hash[:8]}-{txid_hash[8:16]}"
+        txid = str(uuid.uuid4())
 
         # Get available lifts for the resort
         lifts = RESORT_LIFTS[resort]
@@ -64,16 +66,21 @@ class LiftRide:
             txid=txid,
             rfid=rfid,
             resort=resort,
-            ride_time=rtime.isoformat(),
-            lift=lift
+            ride_time=rtime.isoformat(), # Store as ISO string
+            lift=lift,
+            activation_day_count=activation_day_count # Assign new field
         )
 
     def to_json(self):
         """Convert to JSON compatible dictionary"""
-        return json.dumps({
+        data = {
             "TXID": self.txid,
             "RFID": self.rfid,
             "RIDE_TIME": self.ride_time,
             "LIFT": self.lift,
             "RESORT": self.resort,
-        })
+        }
+        if self.activation_day_count is not None: # Include if set
+            # noinspection PyTypeChecker
+            data["ACTIVATION_DAY_COUNT"] = self.activation_day_count
+        return json.dumps(data)
