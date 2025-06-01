@@ -1,11 +1,13 @@
-import time
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import pytz
 import streamlit as st
-from plotly.subplots import make_subplots
+from datetime import datetime
+from datetime import timedelta
 from snowflake.snowpark.context import get_active_session
-from snowflake.snowpark.functions import col, sum, avg, max, when, desc, lit
+from snowflake.snowpark.functions import col, sum, avg, max, when, desc, lit, convert_timezone, hour
+from typing import Optional
 
 # Global configuration
 DEFAULT_CACHE_TTL = 60  # seconds
@@ -20,6 +22,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
 
 # Initialize Snowpark session
 @st.cache_resource
@@ -38,100 +41,140 @@ def init_session():
 
 session = init_session()
 
+
 # Helper function to get date values
 @st.cache_data(ttl=DEFAULT_CACHE_TTL)
-def get_date_values():
-    """Get max ride date and calculated date ranges based off that, due to simulation clock in the future."""
-    # TODO: shift to resort-specific time due to timing issues with simulation clock
+def get_network_reporting_time_data():
+    """
+    Get various date values for the current simulation state.
+    In a normal application, you could just use current time from the app or database.
+    In this example, the world clock is simulated, and we are generating data in the future at a faster clock speed.
+    """
     # noinspection SqlResolve
     query = """
-    WITH latest_raw_data AS (
-        SELECT             
-            MAX(RIDE_TIME) as latest_timestamp
-        FROM LIFT_RIDE
-    ),
-    latest_processed_data AS (
-        SELECT
-            MAX(RIDE_HOUR_TIMESTAMP) as latest_timestamp
-        FROM HOURLY_LIFT_ACTIVITY
-    )
-    SELECT
-        raw.latest_timestamp,
-        --use processed timestamp for most analytics, to avoid gaps in data when simulation clock advances but DTs haven't refreshed yet 
-        DATE(processed.latest_timestamp) as last_data_date,  
-        HOUR(processed.latest_timestamp) as last_data_hour,      
-        last_data_date - INTERVAL '1 day' as yesterday,
-        last_data_date - INTERVAL '7 days' as week_ago,
-        last_data_date - INTERVAL '14 days' as two_weeks_ago,
-        DATE_TRUNC('month', last_data_date) as month_start,
-        DATE_TRUNC('month', last_data_date - INTERVAL '1 month') as prev_month_start
-    FROM latest_raw_data raw cross join latest_processed_data processed
-    """
+            SELECT GREATEST(
+                           (SELECT MAX(RIDE_TIME) FROM LIFT_RIDE),
+                           (SELECT MAX(PURCHASE_TIME) FROM SEASON_PASS),
+                           (SELECT MAX(PURCHASE_TIME) FROM RESORT_TICKET)
+                   )                                                            as latest_world_timestamp,
+                   (SELECT MAX(RIDE_HOUR_TIMESTAMP) FROM HOURLY_RESORT_SUMMARY) as latest_reporting_timestamp; \
+            """
+
     result = session.sql(query).collect()[0]
-    return {
-        'last_data_time': result[0],
-        'current_date': result[1],
-        'current_hour': result[2],
-        'yesterday': result[3],
-        'week_ago': result[4],
-        'two_weeks_ago': result[5],
-        'month_start': result[6],
-        'prev_month_start': result[7]
+    latest_world_time = result[0]
+    latest_reporting_time = result[1]
+
+    # Calculate all date values in Python
+    latest_reporting_date = latest_reporting_time.date()
+    latest_reporting_hour = latest_reporting_time.hour
+    yesterday = latest_reporting_date - timedelta(days=1)
+    week_ago = latest_reporting_date - timedelta(days=7)
+    two_weeks_ago = latest_reporting_date - timedelta(days=14)
+
+    # Month start calculations
+    month_start = latest_reporting_date.replace(day=1)
+    if month_start.month == 1:
+        prev_month_start = month_start.replace(year=month_start.year - 1, month=12)
+    else:
+        prev_month_start = month_start.replace(month=month_start.month - 1)
+
+    time_data = {
+        'latest_world_time': latest_world_time,
+        'latest_reporting_time': latest_reporting_time,
+        'current_date': latest_reporting_date,
+        'current_hour': latest_reporting_hour,
+        'yesterday': yesterday,
+        'week_ago': week_ago,
+        'two_weeks_ago': two_weeks_ago,
+        'month_start': month_start,
+        'prev_month_start': prev_month_start
     }
+    return time_data
 
-def get_last_data_time():
-    return get_date_values()["last_data_time"]
+def get_world_clock_time():
+    return get_network_reporting_time_data()["latest_world_time"]
 
-def get_current_date():
-    return get_date_values()["current_date"]
+def get_network_reporting_time() -> datetime:
+    return get_network_reporting_time_data()["latest_reporting_time"]
 
-def get_current_hour():
-    return get_date_values()["current_hour"]
+@st.cache_data(ttl=DEFAULT_CACHE_TTL)
+def get_resort_reporting_time(selected_resort: str) -> datetime:
+    last_activity_time = session.table("HOURLY_RESORT_SUMMARY").filter(col("RESORT") == selected_resort).agg(
+        max(col("RIDE_HOUR_TIMESTAMP")).alias("last_activity_time")).collect()[0][0]
+    return last_activity_time
+
+def get_resort_reporting_date(selected_resort: str) -> datetime.date:
+    ts = get_resort_reporting_time(selected_resort)
+    return ts.date()
+
+def get_resort_reporting_hour(selected_resort: str) -> int:
+    ts = get_resort_reporting_time(selected_resort)
+    return ts.hour
 
 # Helper function to display simulation status
-def display_simulation_status():
-    """Display current simulation date and last data received time."""
+def display_simulation_status(resort=None):
+    """
+    Display current simulation date and last data received time.
+    """
     try:
         # Get simulation clock data
-        sim_date = get_current_date()
-        last_data = get_last_data_time()
+        if resort is None:
+            reporting_time = get_network_reporting_time()
+        else:
+            reporting_time = get_resort_reporting_time(resort)
+        world_clock_time = get_world_clock_time()
+
+        if resort is not None:
+            reporting_time = convert_to_local_time(resort, reporting_time)
+            last_data_heading = "Resort Local Time"
+            world_clock_time = convert_to_local_time(resort, world_clock_time)
+            time_zone = get_iana_timezone(resort)
+        else:
+            reference_resort = "Vail"
+            reporting_time = convert_to_local_time(reference_resort, reporting_time)
+            last_data_heading = "World Clock"
+            world_clock_time = convert_to_local_time(reference_resort, world_clock_time)
+            time_zone = get_iana_timezone(reference_resort)
 
         # Format dates for display
-        if sim_date is None:
-            sim_date = "N/A"
+        if reporting_time is None:
+            reporting_time = "--"
         else:
-            sim_date = sim_date.strftime('%A, %B %d, %Y')
-        if last_data is None:
-            last_data = "No data received yet"
+            reporting_time = reporting_time.strftime('%A, %m/%d/%y %I:%M:%S %p')
+        if world_clock_time is None:
+            world_clock_time = "--"
         else:
-            last_data = last_data.strftime('%H:%M:%S')
+            world_clock_time = world_clock_time.strftime('%A, %m/%d/%y %I:%M:%S %p')
 
         # Use columns for spacing
         col1, col2, col3 = st.columns([0.3, 0.3, 0.4])
         with col1:
-            st.markdown(f"📅 **Simulation Date:** {sim_date}")
+            st.markdown(f"📅 **Reporting Time:** {reporting_time}")
         with col2:
-            st.markdown(f"🕐 **Last Data Received:** {last_data}")
+            st.markdown(f"🕐 **{last_data_heading}:** {world_clock_time}")
+        with col3:
+            st.markdown(f"🕐 **Time Zone:** {time_zone}")
 
     except Exception as e:
         st.error(f"Error fetching simulation status: {str(e)}")
+
 
 # Data fetching functions using Snowpark
 @st.cache_data(ttl=DEFAULT_CACHE_TTL)
 def get_network_kpis(time_period: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Fetch network-wide KPIs for current and previous periods."""
-    dates = get_date_values()
+    time_data = get_network_reporting_time_data()
 
     # Define date filters
     if time_period == "Today":
-        current_filter = col("RIDE_DATE") == dates['current_date']
-        previous_filter = col("RIDE_DATE") == dates['yesterday']
+        current_filter = col("RIDE_DATE") == time_data['current_date']
+        previous_filter = col("RIDE_DATE") == time_data['yesterday']
     elif time_period == "Last 7 Days":
-        current_filter = col("RIDE_DATE") >= dates['week_ago']
-        previous_filter = (col("RIDE_DATE") >= dates['two_weeks_ago']) & (col("RIDE_DATE") < dates['week_ago'])
+        current_filter = col("RIDE_DATE") >= time_data['week_ago']
+        previous_filter = (col("RIDE_DATE") >= time_data['two_weeks_ago']) & (col("RIDE_DATE") < time_data['week_ago'])
     else:  # Month to Date
-        current_filter = col("RIDE_DATE") >= dates['month_start']
-        previous_filter = (col("RIDE_DATE") >= dates['prev_month_start']) & (col("RIDE_DATE") < dates['month_start'])
+        current_filter = col("RIDE_DATE") >= time_data['month_start']
+        previous_filter = (col("RIDE_DATE") >= time_data['prev_month_start']) & (col("RIDE_DATE") < time_data['month_start'])
 
     # Current period metrics
     current_metrics_df = session.table("V_DAILY_NETWORK_METRICS").filter(current_filter).agg(
@@ -149,16 +192,17 @@ def get_network_kpis(time_period: str) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     return current_metrics_df.to_pandas(), previous_metrics_df.to_pandas()
 
+
 @st.cache_data(ttl=DEFAULT_CACHE_TTL)
 def get_network_resort_comparison(time_period: str) -> pd.DataFrame:
     """Fetch resort comparison data for the specified period."""
-    dates = get_date_values()
+    time_data = get_network_reporting_time_data()
     if time_period == "Today":
-        date_filter = col("RIDE_DATE") == dates['current_date']
+        date_filter = col("RIDE_DATE") == time_data['current_date']
     elif time_period == "Last 7 Days":
-        date_filter = col("RIDE_DATE") >= dates['week_ago']
+        date_filter = col("RIDE_DATE") >= time_data['week_ago']
     else:  # Month to Date
-        date_filter = col("RIDE_DATE") >= dates['month_start']
+        date_filter = col("RIDE_DATE") >= time_data['month_start']
     results_df = (session.table("DAILY_RESORT_SUMMARY")
                   .filter(date_filter)
                   .group_by("RESORT")
@@ -170,16 +214,17 @@ def get_network_resort_comparison(time_period: str) -> pd.DataFrame:
     ).order_by("RESORT"))
     return results_df.to_pandas()
 
+
 @st.cache_data(ttl=DEFAULT_CACHE_TTL)
 def get_network_time_series_data(time_period: str) -> pd.DataFrame:
     """Fetch time series data for trends analysis."""
-    dates = get_date_values()
+    time_data = get_network_reporting_time_data()
     if time_period == "Today":
-        date_filter = col("RIDE_DATE") == dates['current_date']
+        date_filter = col("RIDE_DATE") == time_data['current_date']
     elif time_period == "Last 7 Days":
-        date_filter = col("RIDE_DATE") >= dates['week_ago']
+        date_filter = col("RIDE_DATE") >= time_data['week_ago']
     else:  # Month to Date
-        date_filter = col("RIDE_DATE") >= dates['month_start']
+        date_filter = col("RIDE_DATE") >= time_data['month_start']
     results_df = (session.table("DAILY_RESORT_SUMMARY")
                   .filter(date_filter)
                   .select("RIDE_DATE", "RESORT",
@@ -189,16 +234,17 @@ def get_network_time_series_data(time_period: str) -> pd.DataFrame:
                   .order_by("RIDE_DATE", "RESORT"))
     return results_df.to_pandas()
 
+
 @st.cache_data(ttl=DEFAULT_CACHE_TTL)
 def get_network_status_by_resort(time_period: str) -> pd.DataFrame:
     """Fetch current status for all resorts."""
-    dates = get_date_values()
+    time_data = get_network_reporting_time_data()
     if time_period == "Today":
-        date_filter = col("RIDE_DATE") == dates['current_date']
+        date_filter = col("RIDE_DATE") == time_data['current_date']
     elif time_period == "Last 7 Days":
-        date_filter = col("RIDE_DATE") >= dates['week_ago']
+        date_filter = col("RIDE_DATE") >= time_data['week_ago']
     else:  # Month to Date
-        date_filter = col("RIDE_DATE") >= dates['month_start']
+        date_filter = col("RIDE_DATE") >= time_data['month_start']
     results_df = (session.table("DAILY_RESORT_SUMMARY")
                   .filter(date_filter)
                   .group_by("RESORT")
@@ -214,6 +260,57 @@ def get_network_status_by_resort(time_period: str) -> pd.DataFrame:
                   .order_by(desc("CAPACITY_PCT")))
     return results_df.to_pandas()
 
+
+@st.cache_data(ttl=DEFAULT_CACHE_TTL)
+def get_resort_capacity_data() -> pd.DataFrame:
+    """
+    Fetch and cache the complete RESORT_CAPACITY table.
+    Since it's a small reference table, we cache the whole thing.
+    """
+    results_df = (session.table("RESORT_CAPACITY")
+                  .select("RESORT", "MAX_CAPACITY", "HOURLY_CAPACITY",
+                          "BASE_LIFT_COUNT", "IANA_TIMEZONE")
+                  .order_by("RESORT"))
+    return results_df.to_pandas()
+
+
+def get_available_resorts() -> pd.DataFrame:
+    """
+    Get list of available resorts from RESORT_CAPACITY table.
+    Returns a DataFrame with resort names only for compatibility.
+    """
+    capacity_df = get_resort_capacity_data()
+    return capacity_df[["RESORT"]].copy()
+
+
+def get_iana_timezone(resort: str) -> Optional[str]:
+    capacity_df = get_resort_capacity_data()
+    resort_row = capacity_df[capacity_df["RESORT"] == resort]
+    if resort_row.empty:
+        return None
+    return resort_row.iloc[0]["IANA_TIMEZONE"]
+
+
+def convert_to_local_time(resort: str, utc_datetime: datetime) -> Optional[datetime]:
+    timezone_str = get_iana_timezone(resort)
+    if timezone_str is None:
+        return None
+    try:
+        # Ensure the input datetime is timezone-aware (UTC)
+        if utc_datetime.tzinfo is None:
+            utc_datetime = pytz.UTC.localize(utc_datetime)
+        elif utc_datetime.tzinfo != pytz.UTC:
+            # Convert to UTC if it's in a different timezone
+            utc_datetime = utc_datetime.astimezone(pytz.UTC)
+        # Convert to local timezone
+        local_tz = pytz.timezone(timezone_str)
+        local_datetime = utc_datetime.astimezone(local_tz)
+        return local_datetime
+    except Exception as e:
+        st.error(f"Error converting time for resort {resort}: {e}")
+        return None
+
+
 @st.cache_data(ttl=DEFAULT_CACHE_TTL)
 def get_available_resorts() -> pd.DataFrame:
     """Fetch list of available resorts."""
@@ -226,12 +323,12 @@ def get_available_resorts() -> pd.DataFrame:
 @st.cache_data(ttl=DEFAULT_CACHE_TTL)
 def get_resort_operations_data(selected_resort: str) -> pd.DataFrame:
     """Fetch latest operational metrics for a specific resort from most recent hourly data."""
-    latest_date = get_current_date()
-    latest_hour = get_current_hour()
+    reporting_date = get_resort_reporting_date(selected_resort)
+    reporting_hour = get_resort_reporting_hour(selected_resort)
     results_df = (session.table("HOURLY_RESORT_SUMMARY")
                   .filter((col("RESORT") == selected_resort) &
-                          (col("RIDE_DATE") == latest_date) &
-                          (col("RIDE_HOUR") == latest_hour))
+                          (col("RIDE_DATE") == reporting_date) &
+                          (col("RIDE_HOUR") == reporting_hour))
                   .select(col("VISITOR_COUNT").alias("CURRENT_VISITORS"),
                           col("CAPACITY_PCT").alias("CURRENT_CAPACITY_PCT"),
                           col("TOTAL_RIDES").alias("CURRENT_HOUR_RIDES"),
@@ -239,39 +336,42 @@ def get_resort_operations_data(selected_resort: str) -> pd.DataFrame:
                           col("CAPACITY_STATUS")))
     return results_df.to_pandas()
 
+
 @st.cache_data(ttl=DEFAULT_CACHE_TTL)
 def get_resort_top_lifts(selected_resort: str) -> pd.DataFrame:
     """Fetch top performing lifts for a resort from last 30 minutes."""
-    results_df = (session.table("V_RT_LIFT_PERFORMANCE")
-                  .filter((col("RESORT") == selected_resort) &
-                          (col("USAGE_RANK_IN_RESORT") <= 5))
-                  .select("LIFT",
-                          col("RIDES_30MIN").alias("RIDES_30MIN"),
-                          col("VISITORS_30MIN").alias("VISITORS_30MIN"),
-                          col("ESTIMATED_RIDES_PER_HOUR").alias("RIDES_PER_HOUR"),
-                          col("LAST_ACTIVITY_TIME").alias("LAST_ACTIVITY"),
-                          col("USAGE_RANK_IN_RESORT").alias("RANK"))
-                  .order_by("RANK"))
+    # Invoke tabular procedure to get top 10 lifts for selected resort
+    results_df = session.call('get_resort_lift_performance', lit(selected_resort))
+    results_df = results_df.filter(col("USAGE_RANK_IN_RESORT") <= 10).order_by(col("USAGE_RANK_IN_RESORT"))
     return results_df.to_pandas()
+
 
 @st.cache_data(ttl=DEFAULT_CACHE_TTL)
 def get_resort_hourly_patterns(selected_resort: str) -> pd.DataFrame:
     """Fetch hourly visitor patterns for a resort from most recent date."""
-    latest_date = get_current_date()
+    reporting_date = get_resort_reporting_date(selected_resort)
+    target_timezone = get_iana_timezone(selected_resort)
     results_df = (session.table("HOURLY_RESORT_SUMMARY")
-                  .filter((col("RESORT") == selected_resort) & (col("RIDE_DATE") == latest_date))
-                  .select("RIDE_HOUR", "VISITOR_COUNT", "CAPACITY_PCT", "TOTAL_RECOGNIZED_REVENUE")
-                  .order_by("RIDE_HOUR"))
+                  .filter((col("RESORT") == selected_resort) & (col("RIDE_DATE") == reporting_date))
+                  .with_column("LOCAL_TIMESTAMP", convert_timezone(lit(target_timezone), col("RIDE_HOUR_TIMESTAMP"), lit('UTC')))
+                  .select(hour(col("LOCAL_TIMESTAMP")).alias("RIDE_HOUR"),
+                          col("LOCAL_TIMESTAMP").cast("DATE").alias("RIDE_DATE"),
+                          "RIDE_HOUR_TIMESTAMP",
+                          "VISITOR_COUNT",
+                          "CAPACITY_PCT",
+                          "TOTAL_RECOGNIZED_REVENUE").order_by("RIDE_HOUR"))
     return results_df.to_pandas()
+
 
 @st.cache_data(ttl=DEFAULT_CACHE_TTL)
 def get_resort_revenue_performance(selected_resort: str) -> pd.DataFrame:
     """Fetch revenue performance metrics for a resort from most recent date."""
-    latest_date = get_current_date()
+    reporting_date = get_resort_reporting_date(selected_resort)
     results_df = (session.table("V_DAILY_REVENUE_PERFORMANCE")
-                  .filter((col("RESORT") == selected_resort) & (col("RIDE_DATE") == latest_date))
+                  .filter((col("RESORT") == selected_resort) & (col("RIDE_DATE") == reporting_date))
                   .select("TOTAL_REVENUE", "REVENUE_TARGET_USD", "REVENUE_TARGET_PCT", "PERFORMANCE_STATUS"))
     return results_df.to_pandas()
+
 
 @st.cache_data(ttl=DEFAULT_CACHE_TTL)
 def get_resort_weekly_performance(selected_resort: str) -> pd.DataFrame:
@@ -284,11 +384,13 @@ def get_resort_weekly_performance(selected_resort: str) -> pd.DataFrame:
                   .limit(4))
     return results_df.to_pandas()
 
+
 # Handle page refresh action
 def handle_refresh(page_name):
     """Handle refresh with user feedback."""
     st.cache_data.clear()
     st.rerun()
+
 
 # Utility functions
 def calculate_percentage_change(current: float, previous: float) -> float:
@@ -297,17 +399,20 @@ def calculate_percentage_change(current: float, previous: float) -> float:
         return (current - previous) / previous * 100
     return 0
 
+
 def format_currency(amount: float) -> str:
     """Format number as currency."""
     if pd.isna(amount):
         return "$0"
     return f"${amount:,.0f}"
 
+
 def format_number(number: float) -> str:
     """Format number with thousands separator."""
     if pd.isna(number):
         return "0"
     return f"{number:,.0f}"
+
 
 def get_capacity_icon(capacity: float) -> str:
     """Get status icon based on capacity percentage."""
@@ -320,6 +425,7 @@ def get_capacity_icon(capacity: float) -> str:
     else:
         return "🔴"
 
+
 # Chart styling
 def style_chart(fig):
     """Apply consistent styling to charts."""
@@ -330,6 +436,7 @@ def style_chart(fig):
         paper_bgcolor='white'
     )
     return fig
+
 
 # Initialize session state
 # Default to the network overview page
@@ -597,12 +704,12 @@ elif st.session_state.current_page == RESORT_PAGE_NAME:
             handle_refresh("Resort")
 
     # Display simulation status
-    display_simulation_status()
+    display_simulation_status(resort=selected_resort)
     st.markdown("---")
 
     # Real-time Operations Metrics
-    st.header("⚡ Live Operations Status")
-    st.caption("Live performance in the current hour")
+    st.header("⚡ Mountain Operations Summary")
+    st.caption("Aggregated data based on current reporting hour (may be incomplete)")
 
     try:
         operations_data = get_resort_operations_data(selected_resort)
@@ -632,15 +739,14 @@ elif st.session_state.current_page == RESORT_PAGE_NAME:
         st.error(f"Error fetching operations data: {str(e)}")
 
     # Top Lifts Performance - Last 30 Minutes
-    st.header("📍 Top Performing Lifts")
-    st.caption("Live performance in the last 30 minutes")
+    st.header("📍 Top 10 Performing Lifts")
+    st.caption("Live performance based on last 30 minutes of streaming data")
 
     try:
         realtime_lifts = get_resort_top_lifts(selected_resort)
-
         if not realtime_lifts.empty:
             # Get max rides for scaling the bars
-            max_rides = realtime_lifts['RIDES_30MIN'].max()
+            max_rides = realtime_lifts['RIDES'].max()
 
             for idx, lift in realtime_lifts.iterrows():
                 # Create container for each lift
@@ -648,25 +754,26 @@ elif st.session_state.current_page == RESORT_PAGE_NAME:
                     col1, col2, col3, col4 = st.columns([4, 1.5, 1.5, 1])
 
                     with col1:
-                        # Lift name with rank indicator
-                        rank_emoji = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"][int(lift['RANK']) - 1]
-                        st.write(f"**{rank_emoji} {lift['LIFT']}**")
+                        # Lift name with rank or rank emoji (for top 3!)
+                        rank_map = {1: "🥇", 2: "🥈", 3: "🥉"}
+                        rank = rank_map.get(int(lift['USAGE_RANK_IN_RESORT']), lift['USAGE_RANK_IN_RESORT'])
+                        st.write(f"**{rank}. {lift['LIFT']}**")
 
                         # Progress bar showing relative activity
-                        progress_value = lift['RIDES_30MIN'] / max_rides if max_rides > 0 else 0
+                        progress_value = lift['RIDES'] / max_rides if max_rides > 0 else 0
                         st.progress(progress_value)
 
                     with col2:
                         st.metric(
                             "Rides (30min)",
-                            f"{int(lift['RIDES_30MIN'])}",
+                            f"{int(lift['RIDES'])}",
                             help="Total rides in last 30 minutes"
                         )
 
                     with col3:
                         st.metric(
                             "Visitors",
-                            f"{int(lift['VISITORS_30MIN'])}",
+                            f"{int(lift['UNIQUE_VISITORS'])}",
                             help="Unique visitors in last 30 minutes"
                         )
 
@@ -739,8 +846,6 @@ elif st.session_state.current_page == RESORT_PAGE_NAME:
             st.info("No hourly pattern data available for this resort.")
     except Exception as e:
         st.error(f"Error fetching hourly patterns: {str(e)}")
-
-
 
     # Revenue and Weekly Performance
     col1, col2 = st.columns(2)
