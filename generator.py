@@ -95,6 +95,10 @@ class DataGenerator:
 
         return datetime.timedelta(seconds=seconds_to_advance)
 
+    def _remove_expired_items_from_memory(self, world_time):
+        self.resort_tickets = [t for t in self.resort_tickets if not t.is_expired(world_time)]
+        self.season_passes = [sp for sp in self.season_passes if not sp.is_expired(world_time)]
+
     def _generate_tickets(self, world_time):
         """Generate resort tickets"""
         # Select resorts with weighted probability
@@ -165,7 +169,9 @@ class DataGenerator:
     def _process_lift_rides_for_item(self, item, world_time):
         """Process lift rides for a ticket or pass"""
         # Check if the item is riding today
+        # is_riding_today() now updates the internal _actual_days_used_list or _actual_days_skied_list
         riding, resort = item.is_riding_today(world_time)
+
         if riding:
             # Get the resort local time
             resort_time = self._get_resort_time(world_time, resort)
@@ -176,19 +182,27 @@ class DataGenerator:
 
             # Only generate rides during operating hours and when needed
             if is_open and needs_ride:
+                current_activation_day_count = None
+                if isinstance(item, ResortTicket):
+                    current_activation_day_count = item.days_used_count
+                elif isinstance(item, SeasonPass):
+                    current_activation_day_count = item.days_skied_count
+
                 lift_ride = LiftRide.generate(
-                    item.rfid, resort, world_time, item._rider_skill, self.id_counter
+                    rfid=item.rfid,
+                    resort=resort,
+                    rtime=world_time, # Pass the datetime object
+                    rider_skill=item.rider_skill,
+                    counter=self.id_counter,
+                    activation_day_count=current_activation_day_count # Pass the new field
                 )
                 self.id_counter += 1
                 self.backend.StoreLiftRide(lift_ride)
                 self.lift_rides_generated += 1
 
+
     def _process_lift_rides(self, world_time):
         """Process lift rides for active tickets and passes with balanced processing"""
-        # Remove expired items first to reduce unnecessary processing
-        self.resort_tickets = [t for t in self.resort_tickets if not t.is_expired(world_time)]
-        self.season_passes = [sp for sp in self.season_passes if not sp.is_expired(world_time)]
-
         # Process only a subset of tickets each loop
         if len(self.resort_tickets) > 0:
             # Calculate how many tickets to process this loop
@@ -261,10 +275,13 @@ class DataGenerator:
             previous_real_time = datetime.datetime.now(datetime.UTC)
 
             while True:
-                # Generate season passes
+                # First remove expired passes and tickets from memory
+                self._remove_expired_items_from_memory(world_time)
+
+                # Then generate new season passes
                 self._generate_season_passes(world_time)
 
-                # Generate resort tickets
+                # Then generate resort tickets
                 self._generate_tickets(world_time)
 
                 # Process lift rides

@@ -45,9 +45,9 @@ RIDE_MAX_INTERVAL = 30  # Maximum time between rides
 REST_MIN_INTERVAL = 30  # Minimum rest time
 REST_MAX_INTERVAL = 60  # Maximum rest time
 
-# Riding probability constants - increased for debugging
-DAILY_TICKET_RIDING_CHANCE = 0.45  # Chance of a daily ticket holder riding on a given day
-SEASON_PASS_RIDING_CHANCE = 0.05   # Chance of a season pass holder riding on a given day
+# Riding probability constants
+DAILY_TICKET_RIDING_CHANCE = 0.85  # Chance of a daily ticket holder riding on a given day
+SEASON_PASS_RIDING_CHANCE = 0.10   # Chance of a season pass holder riding on a given day
 
 # Generator processing limits
 MAX_TICKETS_PER_LOOP = 1000        # Maximum tickets to process per loop

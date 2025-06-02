@@ -21,6 +21,7 @@ CREATE SCHEMA IF NOT EXISTS STREAMING_INGEST;
 USE SCHEMA STREAMING_INGEST;
 GRANT OWNERSHIP ON DATABASE STREAMING_INGEST TO ROLE STREAMING_INGEST;
 GRANT OWNERSHIP ON SCHEMA STREAMING_INGEST.STREAMING_INGEST TO ROLE STREAMING_INGEST;
+GRANT EXECUTE TASK ON ACCOUNT TO ROLE STREAMING_INGEST;
 
 CREATE USER STREAMING_INGEST LOGIN_NAME='STREAMING_INGEST' DEFAULT_WAREHOUSE='STREAMING_INGEST', DEFAULT_NAMESPACE='STREAMING_INGEST.STREAMING_INGEST', DEFAULT_ROLE='STREAMING_INGEST', TYPE=SERVICE;
 GRANT ROLE STREAMING_INGEST TO USER STREAMING_INGEST;
@@ -74,7 +75,7 @@ FROM TABLE (
 )
 MATCH_BY_COLUMN_NAME=CASE_SENSITIVE;
 
-CREATE OR REPLACE TABLE LIFT_RIDE(TXID varchar(255), RFID varchar(255), RESORT varchar(255), LIFT varchar(255), RIDE_TIME datetime);
+CREATE OR REPLACE TABLE LIFT_RIDE(TXID varchar(255), RFID varchar(255), RESORT varchar(255), LIFT varchar(255), RIDE_TIME datetime, ACTIVATION_DAY_COUNT integer);
 
 CREATE OR REPLACE PIPE LIFT_RIDE_PIPE AS
 COPY INTO LIFT_RIDE
@@ -121,11 +122,16 @@ docker compose up
 
 ## Create dynamic tables to prepare data for reporting
 
-Please create a notebook in Snowflake by importing `transformation_notebook.ipynb`.  From there,  you will build out various dynamic tables to prepare the streaming data for reporting.
+Please create a notebook in Snowflake by importing `transformation_notebook.ipynb`.  From there,  you will build out various views and dynamic tables to prepare the streaming data for reporting.
 
 ## Deploy Streamlit app to visualize the data
 
+The easiest way to get started with the Streamlit example app is to create a new Streamlit App in Snowsight, and copy the contents of `streamlit_app.py` into the app editor.
+
+### Local Streamlit development
+If you want to develop or run the app locally, you can do so by installing the required packages in a clean Python 3.12 environment and then starting the app using `streamlit run`.
 ```bash
+pip install -r requirements.txt -r requirements-streamlit.txt
 streamlit run streamlit_app.py
 ```
 
