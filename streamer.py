@@ -23,6 +23,7 @@ database_name = os.getenv("DATABASE_NAME")
 schema_name = os.getenv("SCHEMA_NAME")
 client_name = os.getenv("CLIENT_NAME")
 account_name = os.getenv("SNOWFLAKE_ACCOUNT")
+host_name = os.getenv("SNOWFLAKE_HOST", f"{account_name}.snowflakecomputing.com").replace("_","-")
 user_name = os.getenv("SNOWFLAKE_USER")
 private_key = os.getenv("PRIVATE_KEY")
 BATCH_SIZE = 10000

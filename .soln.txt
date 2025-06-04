@@ -9,6 +9,7 @@ def stream_data(pipe_name, fn_get_data, fn_delete_data):
         "schema": schema_name,
         "private_key": private_key,
         "ROWSET_DEV_VM_TEST_MODE": "false",
+        "host": host_name,
     }
     with closing(SnowflakeStreamingIngestClient(client_name, **props)) as client:
         logger.info(f"[{thread_name}] Connected to Snowflake, sending rows with batching")
