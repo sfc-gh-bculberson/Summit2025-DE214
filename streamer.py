@@ -1,19 +1,18 @@
+from contextlib import closing
 import logging
 import os
 import threading
 import time
 
-from contextlib import closing
-from pathlib import Path
 from dotenv import load_dotenv
 
-from snowflake.ingest import SnowflakeStreamingIngestClient
+from snowflake.ingest.streaming import StreamingIngestClient
 
 from storage.sqlite_backend import SQLiteBackend
 from utils import configure_logging
 
 configure_logging(logging.DEBUG)
-logger = logging.getLogger('ski_data_streamer')
+logger = logging.getLogger("ski_data_streamer")
 
 load_dotenv()
 
@@ -23,7 +22,9 @@ database_name = os.getenv("DATABASE_NAME")
 schema_name = os.getenv("SCHEMA_NAME")
 client_name = os.getenv("CLIENT_NAME")
 account_name = os.getenv("SNOWFLAKE_ACCOUNT")
-host_name = os.getenv("SNOWFLAKE_HOST", f"{account_name}.snowflakecomputing.com").replace("_","-")
+host_name = os.getenv(
+    "SNOWFLAKE_HOST", f"{account_name}.snowflakecomputing.com"
+).replace("_", "-")
 user_name = os.getenv("SNOWFLAKE_USER")
 private_key = os.getenv("PRIVATE_KEY")
 BATCH_SIZE = 10000
@@ -33,6 +34,7 @@ LOOP_LOG_INTERVAL_SECONDS = 10  # Log every N seconds
 
 def stream_data(pipe_name, fn_get_data, fn_delete_data):
     # Write this function to stream data to Snowflake
+    # Answer key in .soln.txt
     while True:
         logger.info("Sending rows with batching")
 

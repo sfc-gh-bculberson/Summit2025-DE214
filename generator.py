@@ -9,7 +9,7 @@ from utils import configure_logging
 
 # Configure logging
 configure_logging()
-logger = logging.getLogger('ski_data_generator')
+logger = logging.getLogger("ski_data_generator")
 
 # Import models
 from models.resort_ticket import ResortTicket
@@ -21,9 +21,12 @@ from storage.sqlite_backend import SQLiteBackend
 
 # Import constants
 from consts import (
-    RESORTS, RESORT_WEIGHTS, RESORT_TZS, RESORT_LIFTS,
-    SPEED_SETTINGS, MAX_TICKETS_PER_LOOP, MAX_PASSES_PER_LOOP, RIDE_MIN_INTERVAL, RIDE_MAX_INTERVAL, REST_MIN_INTERVAL,
-    REST_MAX_INTERVAL
+    RESORTS,
+    RESORT_WEIGHTS,
+    RESORT_TZS,
+    SPEED_SETTINGS,
+    MAX_TICKETS_PER_LOOP,
+    MAX_PASSES_PER_LOOP,
 )
 
 # How often to log summary (every N seconds)
@@ -57,6 +60,7 @@ class DataGenerator:
         # Import faker lazily if needed
         try:
             from faker import Faker
+
             self.faker = Faker()
             # Make faker deterministic too
             self.faker.seed_instance(self.seed)
@@ -96,8 +100,12 @@ class DataGenerator:
         return datetime.timedelta(seconds=seconds_to_advance)
 
     def _remove_expired_items_from_memory(self, world_time):
-        self.resort_tickets = [t for t in self.resort_tickets if not t.is_expired(world_time)]
-        self.season_passes = [sp for sp in self.season_passes if not sp.is_expired(world_time)]
+        self.resort_tickets = [
+            t for t in self.resort_tickets if not t.is_expired(world_time)
+        ]
+        self.season_passes = [
+            sp for sp in self.season_passes if not sp.is_expired(world_time)
+        ]
 
     def _generate_tickets(self, world_time):
         """Generate resort tickets"""
@@ -109,7 +117,9 @@ class DataGenerator:
         # Generate and store tickets
         for resort in resorts:
             if self.faker:
-                ticket = ResortTicket.generate(resort, world_time, self.faker, self.id_counter)
+                ticket = ResortTicket.generate(
+                    resort, world_time, self.faker, self.id_counter
+                )
             else:
                 # Basic ticket generation without faker
                 ticket = ResortTicket(
@@ -130,12 +140,16 @@ class DataGenerator:
     def _generate_season_passes(self, world_time):
         """Generate season passes"""
         # Calculate how many season passes needed
-        season_passes_needed = int(self.tickets_purchased / self.tickets_to_season_pass_ratio)
+        season_passes_needed = int(
+            self.tickets_purchased / self.tickets_to_season_pass_ratio
+        )
 
         # Generate new passes as needed
         while season_passes_needed > self.season_passes_purchased:
             if self.faker:
-                season_pass = SeasonPass.generate(world_time, self.faker, self.id_counter)
+                season_pass = SeasonPass.generate(
+                    world_time, self.faker, self.id_counter
+                )
             else:
                 # Basic season pass generation without faker
                 season_pass = SeasonPass(
@@ -191,15 +205,14 @@ class DataGenerator:
                 lift_ride = LiftRide.generate(
                     rfid=item.rfid,
                     resort=resort,
-                    rtime=world_time, # Pass the datetime object
+                    rtime=world_time,  # Pass the datetime object
                     rider_skill=item.rider_skill,
                     counter=self.id_counter,
-                    activation_day_count=current_activation_day_count # Pass the new field
+                    activation_day_count=current_activation_day_count,  # Pass the new field
                 )
                 self.id_counter += 1
                 self.backend.StoreLiftRide(lift_ride)
                 self.lift_rides_generated += 1
-
 
     def _process_lift_rides(self, world_time):
         """Process lift rides for active tickets and passes with balanced processing"""
@@ -209,7 +222,9 @@ class DataGenerator:
             tickets_to_process = min(len(self.resort_tickets), MAX_TICKETS_PER_LOOP)
 
             # Choose tickets to process randomly for a more balanced distribution
-            selected_ticket_indices = random.sample(range(len(self.resort_tickets)), tickets_to_process)
+            selected_ticket_indices = random.sample(
+                range(len(self.resort_tickets)), tickets_to_process
+            )
 
             for idx in selected_ticket_indices:
                 self._process_lift_rides_for_item(self.resort_tickets[idx], world_time)
@@ -220,7 +235,9 @@ class DataGenerator:
             passes_to_process = min(len(self.season_passes), MAX_PASSES_PER_LOOP)
 
             # Choose passes to process randomly for a more balanced distribution
-            selected_pass_indices = random.sample(range(len(self.season_passes)), passes_to_process)
+            selected_pass_indices = random.sample(
+                range(len(self.season_passes)), passes_to_process
+            )
 
             for idx in selected_pass_indices:
                 self._process_lift_rides_for_item(self.season_passes[idx], world_time)
@@ -231,9 +248,15 @@ class DataGenerator:
 
         # Calculate generation rates
         seconds_elapsed = current_time - self.start_time
-        tickets_per_sec = self.tickets_purchased / seconds_elapsed if seconds_elapsed > 0 else 0
-        passes_per_sec = self.season_passes_purchased / seconds_elapsed if seconds_elapsed > 0 else 0
-        rides_per_sec = self.lift_rides_generated / seconds_elapsed if seconds_elapsed > 0 else 0
+        tickets_per_sec = (
+            self.tickets_purchased / seconds_elapsed if seconds_elapsed > 0 else 0
+        )
+        passes_per_sec = (
+            self.season_passes_purchased / seconds_elapsed if seconds_elapsed > 0 else 0
+        )
+        rides_per_sec = (
+            self.lift_rides_generated / seconds_elapsed if seconds_elapsed > 0 else 0
+        )
 
         # Get memory usage
         try:
@@ -247,9 +270,11 @@ class DataGenerator:
         world_time_str = world_time.strftime("%m/%d %H:%M")
 
         # Create one-line summary
-        logger.info(f"[{world_time_str}] Generated: {self.tickets_purchased}T {self.season_passes_purchased}P {self.lift_rides_generated}R | "
-                    f"Rate: {tickets_per_sec:.1f}T/s {passes_per_sec:.1f}P/s {rides_per_sec:.1f}R/s | "
-                    f"Memory: {len(self.resort_tickets)}T {len(self.season_passes)}P{memory_str}")
+        logger.info(
+            f"[{world_time_str}] Generated: {self.tickets_purchased}T {self.season_passes_purchased}P {self.lift_rides_generated}R | "
+            f"Rate: {tickets_per_sec:.1f}T/s {passes_per_sec:.1f}P/s {rides_per_sec:.1f}R/s | "
+            f"Memory: {len(self.resort_tickets)}T {len(self.season_passes)}P{memory_str}"
+        )
 
     def event_loop(self):
         """Main event loop with simplified logging"""
@@ -257,8 +282,10 @@ class DataGenerator:
         current_date = datetime.datetime.now(datetime.UTC).date()
         world_time = datetime.datetime.combine(
             current_date,
-            datetime.time(hour=14, minute=0),  # 2:00 PM UTC (8:00 AM Mountain, 7:00 AM Pacific)
-            tzinfo=datetime.UTC
+            datetime.time(
+                hour=14, minute=0
+            ),  # 2:00 PM UTC (8:00 AM Mountain, 7:00 AM Pacific)
+            tzinfo=datetime.UTC,
         )
         self.start_time = time.time()
 
@@ -269,7 +296,9 @@ class DataGenerator:
             self.faker.seed_instance(self.seed)
 
         try:
-            logger.info(f"Starting data generation at {world_time.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+            logger.info(
+                f"Starting data generation at {world_time.strftime('%Y-%m-%d %H:%M:%S %Z')}"
+            )
 
             # Previous real time for time increment calculation
             previous_real_time = datetime.datetime.now(datetime.UTC)
@@ -289,12 +318,17 @@ class DataGenerator:
 
                 # Advance world time using original logic but with safety limits
                 current_time = datetime.datetime.now(datetime.UTC)
-                time_increment = self._calculate_world_time_increment(previous_real_time, current_time)
+                time_increment = self._calculate_world_time_increment(
+                    previous_real_time, current_time
+                )
                 world_time += time_increment
                 previous_real_time = current_time
 
                 # Log summary every SUMMARY_LOG_INTERVAL_SECONDS seconds
-                if current_time.timestamp() - self.last_summary_time >= SUMMARY_LOG_INTERVAL_SECONDS:
+                if (
+                    current_time.timestamp() - self.last_summary_time
+                    >= SUMMARY_LOG_INTERVAL_SECONDS
+                ):
                     self._log_summary(world_time)
                     self.last_summary_time = current_time.timestamp()
 
