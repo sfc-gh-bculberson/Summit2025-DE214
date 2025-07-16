@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y supervisor
 
 # Copy the files into the container
 COPY requirements.txt /app/
-COPY lib/snowflake_ingest-0.0.1.tar.gz /app/lib/snowflake_ingest-0.0.1.tar.gz
+COPY lib/snowflake_ingest_streaming-0.2.0+rel.test.97.g0311ff1-cp39-abi3-macosx_11_0_arm64.whl /app/lib/snowflake_ingest_streaming-0.2.0+rel.test.97.g0311ff1-cp39-abi3-macosx_11_0_arm64.whl
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application files
