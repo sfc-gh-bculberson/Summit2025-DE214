@@ -1,19 +1,18 @@
+from contextlib import closing
 import logging
 import os
 import threading
 import time
 
-from contextlib import closing
-from pathlib import Path
 from dotenv import load_dotenv
 
-from snowflake.ingest import SnowflakeStreamingIngestClient
+from snowflake.ingest.streaming import StreamingIngestClient
 
 from storage.sqlite_backend import SQLiteBackend
 from utils import configure_logging
 
 configure_logging(logging.DEBUG)
-logger = logging.getLogger('ski_data_streamer')
+logger = logging.getLogger("ski_data_streamer")
 
 load_dotenv()
 
@@ -23,7 +22,9 @@ database_name = os.getenv("DATABASE_NAME")
 schema_name = os.getenv("SCHEMA_NAME")
 client_name = os.getenv("CLIENT_NAME")
 account_name = os.getenv("SNOWFLAKE_ACCOUNT")
-host_name = os.getenv("SNOWFLAKE_HOST", f"{account_name}.snowflakecomputing.com").replace("_","-")
+host_name = os.getenv(
+    "SNOWFLAKE_HOST", f"{account_name}.snowflakecomputing.com"
+).replace("_", "-")
 user_name = os.getenv("SNOWFLAKE_USER")
 private_key = os.getenv("PRIVATE_KEY")
 BATCH_SIZE = 10000
@@ -32,9 +33,60 @@ LOOP_LOG_INTERVAL_SECONDS = 10  # Log every N seconds
 
 
 def stream_data(pipe_name, fn_get_data, fn_delete_data):
-    # Write this function to stream data to Snowflake
-    while True:
-        logger.info("Sending rows with batching")
+    thread_name = threading.current_thread().name
+    logger.info(f"[{thread_name}] Starting stream for pipe: {pipe_name}")
+
+    props = {
+        "user": user_name,
+        "account": account_name,
+        "private_key": private_key,
+        "host": host_name,
+    }
+    with closing(
+        StreamingIngestClient(
+            client_name, database_name, schema_name, pipe_name, properties=props
+        )
+    ) as client:
+        logger.info(
+            f"[{thread_name}] Connected to Snowflake, sending rows with batching"
+        )
+
+        channel, _ = client.open_channel(channel_name)
+        logger.info(f"[{thread_name}] Opened channel for {pipe_name}")
+
+        latest_committed_offset_token = channel.get_latest_committed_offset_token()
+        if not latest_committed_offset_token:
+            latest_committed_offset_token = 0
+
+        loop_count = 0
+        last_log_time = time.time()
+
+        while True:
+            loop_count += 1
+            rows = fn_get_data(latest_committed_offset_token, BATCH_SIZE)
+
+            # Periodic logging to show we're still running
+            current_time = time.time()
+            if current_time - last_log_time >= LOOP_LOG_INTERVAL_SECONDS:
+                logger.info(
+                    f"[{thread_name}] Loop #{loop_count} - Fetched {len(rows)} rows from offset {latest_committed_offset_token}"
+                )
+                last_log_time = current_time
+
+            if len(rows) > 0:
+                nl_json = "\n".join([row[1] for row in rows])
+                latest_committed_offset_token = rows[-1][0]
+                channel.append_row(
+                    nl_json, offset_token=str(latest_committed_offset_token)
+                )
+                current_committed_offset_token = (
+                    channel.get_latest_committed_offset_token()
+                )
+                if current_committed_offset_token:
+                    fn_delete_data(current_committed_offset_token)
+                    logger.debug(
+                        f"[{thread_name}] Processed {len(rows)} rows, deleted up to offset {current_committed_offset_token}"
+                    )
 
 
 def stream_resort_tickets():
