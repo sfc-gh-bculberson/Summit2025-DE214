@@ -8,7 +8,8 @@ from utils import configure_logging
 
 # Configure logger
 configure_logging()
-logger = logging.getLogger('sqlite_backend')
+logger = logging.getLogger("sqlite_backend")
+
 
 class SQLiteBackend:
     """SQLite backend for persistent storage of streaming data to ensure durability"""
@@ -30,7 +31,7 @@ class SQLiteBackend:
         self.con = sqlite3.connect(self.db_path, timeout=self.timeout)
 
         # Enable WAL mode for better concurrency
-        self.con.execute('PRAGMA journal_mode=WAL')
+        self.con.execute("PRAGMA journal_mode=WAL")
 
         # Create tables if they don't exist
         self._initialize_tables()
@@ -40,7 +41,7 @@ class SQLiteBackend:
         tables = [
             "CREATE TABLE IF NOT EXISTS SEASON_PASS (ID INTEGER PRIMARY KEY AUTOINCREMENT, DATA TEXT)",
             "CREATE TABLE IF NOT EXISTS RESORT_TICKET (ID INTEGER PRIMARY KEY AUTOINCREMENT, DATA TEXT)",
-            "CREATE TABLE IF NOT EXISTS LIFT_RIDE (ID INTEGER PRIMARY KEY AUTOINCREMENT, DATA TEXT)"
+            "CREATE TABLE IF NOT EXISTS LIFT_RIDE (ID INTEGER PRIMARY KEY AUTOINCREMENT, DATA TEXT)",
         ]
 
         with self.lock:
@@ -74,7 +75,9 @@ class SQLiteBackend:
                 if "database is locked" in str(e) and retries < self.max_retries:
                     retries += 1
                     # Log retry attempt
-                    logger.warning(f"Database locked, retrying ({retries}/{self.max_retries})...")
+                    logger.warning(
+                        f"Database locked, retrying ({retries}/{self.max_retries})..."
+                    )
 
                     # Sleep with exponential backoff and some randomness
                     time.sleep(delay * (0.8 + 0.4 * random.random()))
@@ -82,7 +85,9 @@ class SQLiteBackend:
                 else:
                     # We've exhausted retries or it's a different error
                     if "database is locked" in str(e):
-                        logger.error(f"Database still locked after {self.max_retries} retries")
+                        logger.error(
+                            f"Database still locked after {self.max_retries} retries"
+                        )
                     raise
 
     # Store operations with retry logic
@@ -127,12 +132,13 @@ class SQLiteBackend:
 
     def GetSeasonPassBatch(self, after_id, batch_size):
         """Get a batch of season passes with retry logic"""
+
         def _select():
             with self.lock:
                 cur = self.con.cursor()
                 cur.execute(
                     "SELECT ID, DATA FROM SEASON_PASS WHERE ID > ? LIMIT ?",
-                    (after_id, batch_size)
+                    (after_id, batch_size),
                 )
                 return cur.fetchall()
 
@@ -140,12 +146,13 @@ class SQLiteBackend:
 
     def GetResortTicketBatch(self, after_id, batch_size):
         """Get a batch of resort tickets with retry logic"""
+
         def _select():
             with self.lock:
                 cur = self.con.cursor()
                 cur.execute(
                     "SELECT ID, DATA FROM RESORT_TICKET WHERE ID > ? LIMIT ?",
-                    (after_id, batch_size)
+                    (after_id, batch_size),
                 )
                 return cur.fetchall()
 
@@ -153,12 +160,13 @@ class SQLiteBackend:
 
     def GetLiftRideBatch(self, after_id, batch_size):
         """Get a batch of lift rides with retry logic"""
+
         def _select():
             with self.lock:
                 cur = self.con.cursor()
                 cur.execute(
                     "SELECT ID, DATA FROM LIFT_RIDE WHERE ID > ? LIMIT ?",
-                    (after_id, batch_size)
+                    (after_id, batch_size),
                 )
                 return cur.fetchall()
 
@@ -168,6 +176,7 @@ class SQLiteBackend:
 
     def DeleteSeasonPasses(self, before_id):
         """Delete season passes with retry logic"""
+
         def _delete():
             with self.lock:
                 cur = self.con.cursor()
@@ -178,6 +187,7 @@ class SQLiteBackend:
 
     def DeleteResortTickets(self, before_id):
         """Delete resort tickets with retry logic"""
+
         def _delete():
             with self.lock:
                 cur = self.con.cursor()
@@ -188,6 +198,7 @@ class SQLiteBackend:
 
     def DeleteLiftRides(self, before_id):
         """Delete lift rides with retry logic"""
+
         def _delete():
             with self.lock:
                 cur = self.con.cursor()
