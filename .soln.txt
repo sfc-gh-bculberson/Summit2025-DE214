@@ -40,14 +40,9 @@ def stream_data(pipe_name, fn_get_data, fn_delete_data):
                 last_log_time = current_time
 
             if len(rows) > 0:
-                nl_json = "\n".join([row[1] for row in rows])
-                latest_committed_offset_token = rows[-1][0]
-                channel.append_row(
-                    nl_json, offset_token=str(latest_committed_offset_token)
-                )
-                current_committed_offset_token = (
-                    channel.get_latest_committed_offset_token()
-                )
+                for row in rows:
+                    channel.append_row(json.loads(row[1]), str(row[0]))
+                current_committed_offset_token = channel.get_latest_committed_offset_token()
                 if current_committed_offset_token:
                     fn_delete_data(current_committed_offset_token)
                     logger.debug(
