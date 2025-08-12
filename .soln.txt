@@ -42,9 +42,7 @@ def stream_data(pipe_name, fn_get_data, fn_delete_data):
             if len(rows) > 0:
                 for row in rows:
                     channel.append_row(json.loads(row[1]), str(row[0]))
-                current_committed_offset_token = (
-                    channel.get_latest_committed_offset_token()
-                )
+                current_committed_offset_token = channel.get_latest_committed_offset_token()
                 if current_committed_offset_token:
                     fn_delete_data(current_committed_offset_token)
                     logger.debug(
