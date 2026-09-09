@@ -3,7 +3,3 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    volumes:
-      - streamingdata:/app/data
-volumes:
-  streamingdata:

@@ -1,11 +1,13 @@
 import os
 import datetime
+import json
 import random
 import logging
 import time
 import psutil
 
 from utils import configure_logging
+from streamer import SnowflakeStreamingSink
 
 # Configure logging
 configure_logging()
@@ -15,9 +17,6 @@ logger = logging.getLogger("ski_data_generator")
 from models.resort_ticket import ResortTicket
 from models.season_pass import SeasonPass
 from models.lift_ride import LiftRide
-
-# Import storage
-from storage.sqlite_backend import SQLiteBackend
 
 # Import constants
 from consts import (
@@ -39,7 +38,7 @@ class DataGenerator:
     def __init__(self):
         """Initialize the data generator"""
         self.start_time = None
-        self.backend = SQLiteBackend()
+        self.sink = SnowflakeStreamingSink()
         self.tickets_per_event_loop = 5
         self.tickets_to_season_pass_ratio = 20
 
@@ -109,6 +108,7 @@ class DataGenerator:
 
     def _generate_tickets(self, world_time):
         """Generate resort tickets"""
+        rows = []
         # Select resorts with weighted probability
         resorts = random.choices(
             RESORTS, weights=RESORT_WEIGHTS, k=self.tickets_per_event_loop
@@ -134,11 +134,13 @@ class DataGenerator:
 
             self.id_counter += 1
             self.resort_tickets.append(ticket)
-            self.backend.StoreResortTicket(ticket)
+            rows.append(json.loads(ticket.to_json()))
             self.tickets_purchased += 1
+        return rows
 
     def _generate_season_passes(self, world_time):
         """Generate season passes"""
+        rows = []
         # Calculate how many season passes needed
         season_passes_needed = int(
             self.tickets_purchased / self.tickets_to_season_pass_ratio
@@ -163,8 +165,9 @@ class DataGenerator:
 
             self.id_counter += 1
             self.season_passes.append(season_pass)
-            self.backend.StoreSeasonPass(season_pass)
+            rows.append(json.loads(season_pass.to_json()))
             self.season_passes_purchased += 1
+        return rows
 
     # noinspection PyMethodMayBeStatic
     def _get_resort_time(self, world_time, resort):
@@ -211,11 +214,13 @@ class DataGenerator:
                     activation_day_count=current_activation_day_count,  # Pass the new field
                 )
                 self.id_counter += 1
-                self.backend.StoreLiftRide(lift_ride)
                 self.lift_rides_generated += 1
+                return json.loads(lift_ride.to_json())
+        return None
 
     def _process_lift_rides(self, world_time):
         """Process lift rides for active tickets and passes with balanced processing"""
+        rows = []
         # Process only a subset of tickets each loop
         if len(self.resort_tickets) > 0:
             # Calculate how many tickets to process this loop
@@ -227,7 +232,11 @@ class DataGenerator:
             )
 
             for idx in selected_ticket_indices:
-                self._process_lift_rides_for_item(self.resort_tickets[idx], world_time)
+                row = self._process_lift_rides_for_item(
+                    self.resort_tickets[idx], world_time
+                )
+                if row:
+                    rows.append(row)
 
         # Process only a subset of season passes each loop
         if len(self.season_passes) > 0:
@@ -240,7 +249,12 @@ class DataGenerator:
             )
 
             for idx in selected_pass_indices:
-                self._process_lift_rides_for_item(self.season_passes[idx], world_time)
+                row = self._process_lift_rides_for_item(
+                    self.season_passes[idx], world_time
+                )
+                if row:
+                    rows.append(row)
+        return rows
 
     def _log_summary(self, world_time):
         """Log a concise one-line summary of generation progress"""
@@ -308,13 +322,22 @@ class DataGenerator:
                 self._remove_expired_items_from_memory(world_time)
 
                 # Then generate new season passes
-                self._generate_season_passes(world_time)
+                season_pass_rows = self._generate_season_passes(world_time)
 
                 # Then generate resort tickets
-                self._generate_tickets(world_time)
+                resort_ticket_rows = self._generate_tickets(world_time)
 
                 # Process lift rides
-                self._process_lift_rides(world_time)
+                lift_ride_rows = self._process_lift_rides(world_time)
+
+                # Keep each batch in memory until Snowflake durably acknowledges it.
+                self.sink.append_batches(
+                    {
+                        "season_passes": season_pass_rows,
+                        "resort_tickets": resort_ticket_rows,
+                        "lift_rides": lift_ride_rows,
+                    }
+                )
 
                 # Advance world time using original logic but with safety limits
                 current_time = datetime.datetime.now(datetime.UTC)
@@ -338,6 +361,8 @@ class DataGenerator:
             self._log_summary(world_time)
         except Exception as e:
             logger.error(f"Error in data generation: {e}", exc_info=True)
+        finally:
+            self.sink.close()
 
 
 def event_loop():

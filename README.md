@@ -1,8 +1,8 @@
 # Build a Streaming Data Pipeline in Python
 
-In this hands-on lab, you'll build a production-ready streaming data pipeline using Python and Snowflake's new Rowset API. Learn how to efficiently ingest real-time data streams into Snowflake, create automated aggregations, and visualize insights through an interactive Streamlit application. You'll walk away with practical experience in modern data engineering techniques and a functional end-to-end pipeline that can handle continuous data flows at scale.
+In this hands-on lab, you'll build a streaming data pipeline using the Snowpipe Streaming high-performance Python SDK. The generator sends each in-memory batch directly to Snowflake through elastic channels and waits for Snowflake's durable acknowledgment before continuing.
 
-Docs for Snowpipe Streaming Rowset API Private Preview: https://docs.snowflake.com/en/LIMITEDACCESS/snowpipe-streaming-rowset-api/rowset-api-intro
+Snowpipe Streaming Python SDK documentation: https://docs.snowflake.com/en/user-guide/snowpipe-streaming-sdk-python/reference/latest/api/snowflake/ingest/streaming/index
 
 ## Database Setup
 
@@ -54,7 +54,7 @@ USE ROLE STREAMING_INGEST;
 USE DATABASE STREAMING_INGEST;
 USE SCHEMA STREAMING_INGEST;
 
-CREATE OR REPLACE TABLE RESORT_TICKET(TXID varchar(255), RFID varchar(255), RESORT varchar(255), PURCHASE_TIME datetime, PRICE_USD DECIMAL(7,2), EXPIRATION_TIME date, DAYS number, NAME varchar(255), ADDRESS variant, PHONE varchar(255), EMAIL varchar(255), EMERGENCY_CONTACT variant);
+CREATE OR REPLACE TABLE RESORT_TICKET(TXID varchar(255), RFID varchar(255), RESORT varchar(255), PURCHASE_TIME datetime, PRICE_USD DECIMAL(7,2), EXPIRATION_TIME date, DAYS number, DAYS_USED number, NAME varchar(255), ADDRESS variant, PHONE varchar(255), EMAIL varchar(255), EMERGENCY_CONTACT variant);
 
 CREATE OR REPLACE PIPE RESORT_TICKET_PIPE AS
 COPY INTO RESORT_TICKET
@@ -65,7 +65,7 @@ FROM TABLE (
 )
 MATCH_BY_COLUMN_NAME=CASE_SENSITIVE;
 
-CREATE OR REPLACE TABLE SEASON_PASS(TXID varchar(255), RFID varchar(255), PURCHASE_TIME datetime, PRICE_USD DECIMAL(7,2), EXPIRATION_TIME date, NAME varchar(255), ADDRESS variant, PHONE varchar(255), EMAIL varchar(255), EMERGENCY_CONTACT variant);
+CREATE OR REPLACE TABLE SEASON_PASS(TXID varchar(255), RFID varchar(255), PURCHASE_TIME datetime, PRICE_USD DECIMAL(7,2), EXPIRATION_TIME date, DAYS_USED number, NAME varchar(255), ADDRESS variant, PHONE varchar(255), EMAIL varchar(255), EMERGENCY_CONTACT variant);
 
 CREATE OR REPLACE PIPE SEASON_PASS_PIPE AS
 COPY INTO SEASON_PASS
@@ -96,11 +96,12 @@ PRVK=`cat ./rsa_key.p8`
 echo "PRIVATE_KEY=\"$PRVK\""
 ```
 
-Copy the .env.example to .env and modify the variables in your project
+Copy `.env.example` to `.env` and set `SNOWFLAKE_ACCOUNT_URI` to the **Account URL** from Snowsight (account selector → **View account details**). See [Locate your Snowflake account information in Snowsight](https://docs.snowflake.com/en/user-guide/ui-snowsight-gs#locate-your-snowflake-account-information-in-snowsight).
 
 ```
-SNOWFLAKE_ACCOUNT=<ACCOUNT_HERE>
+SNOWFLAKE_ACCOUNT_URI=<ACCOUNT_URL_FROM_SNOWSIGHT>
 SNOWFLAKE_USER=STREAMING_INGEST
+SNOWFLAKE_ROLE=STREAMING_INGEST
 PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
 YOUR...
 ....KEY
@@ -120,6 +121,10 @@ docker compose build
 ```sh
 docker compose up
 ```
+
+The generator creates one `StreamingIngestClient` per pipe, gets each client's
+singleton elastic channel, and batches generated rows with `append_rows_with_wait`.
+The returned futures complete only after Snowflake durably acknowledges the rows.
 
 ## Create dynamic tables to prepare data for reporting
 
@@ -141,5 +146,3 @@ streamlit run streamlit_app.py
 - Deploy notebook via SnowCLI
 - Migrate Streamlit app into project template 
 - Deploy Streamlit app via SnowCLI
-- Better purge data from generator to avoid large memory consumption over long simulations
-- Fix the streamer loop to align with quickstart
